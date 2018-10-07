@@ -1,0 +1,10 @@
+---- hChargeStatus Æ¥Åä (9 in 0 ÎÄ¼þ) ----
+drv_power.c:26:__hdle hChargeStatus = NULL;
+drv_power.c:68:	hChargeStatus = esPINS_PinGrpReq(&gpio_set, 1);
+drv_power.c:69:	if (!hChargeStatus)
+drv_power.c:84:	if (hChargeStatus)
+drv_power.c:86:		esPINS_PinGrpRel(hChargeStatus, 0);
+drv_power.c:87:		hChargeStatus = NULL;
+drv_power.c:114:	if (hChargeStatus)
+drv_power.c:116:		esPINS_PinGrpRel(hChargeStatus, 0);
+drv_power.c:117:		hChargeStatus = NULL;

@@ -1,0 +1,62 @@
+此版本为基本完善的版本，对于AVIN要求不高的项目，可用于试产。
+
+
+*** emod/drv_power 直接从C100移植
+*** emod/drv_matrix_key drv_rocker 按键驱动，直接从C100移植，替换C500的bsp_rk.c bsp_rk.h，RK_GetData得到的值相比C100除以2。（C500AD是12位精度，C100是11位）
+emod/display 显示驱动跟C100一样调试，接口不变
+emod/drv_fm fm驱动根据自己实际情况，从C100\C300等进行移植
+emod/drv_ir ir驱动根据自己实际情况，从C100\C300等进行移植
+emod/drv_rtc rtc源码一般不需要修改，根据自己实际情况，在系统配置里面rtc_exist=0和 2分别代表无rtc，有外部rtc（8563）
+emod/drv_touchpanel 触摸源码，一般不需要修改，这里遵循C100一样，开放源码。
+emod/drv_uart uart通讯源码，一般不需要修改，如确有需要可根据实际情况修改。
+emod/mod_orange GUI源码，一般不需要修改，可根据实际情况增加接口
+emod/mod_standby standby休眠源码，一般不需要大改，主要修改休眠唤醒部分代码，例如添加AD按键唤醒，添加SD卡插拔唤醒（检测IO口）
+              请注意standby.bin编译出来不能超过12k，standby里面不能有打印，
+              如确有需要打印请把初始化和退出的几个地方临时去掉： 主要是dram和clk pll相关的地方，比较复杂。dram_power_save_process mctl_init_stadby standby_clk_core2hosc standby_clk_plldisable standby_clk_pllenable standby_clk_ahb2pll6 standby_clk_core2hosc standby_clk_core2pll
+              调试standby很麻烦，所以一般不要大改，谨慎修改。
+*** livedesk/beetles 所有应用代码，请从C100移植
+
+*** workspace/suniv/beetles/ramfs.ini ramfs配置，压缩文件类型个数count=2修改为2，mod后缀不压缩
+workspace/suniv/beetles/rootfs/drv/monitor.drv 硬件扫描monitor驱动，放在rootfs目录，跟C100不一样
+*** workspace/suniv/beetles/rootfs/drv/key.drv 按键驱动，放在rootfs目录，跟C100不一样。
+        请注意，跟C100不一样，系统不再加载名为key.drv的驱动，需要应用自己加载key.drv，文件名请自己定义，不一定为key.drv。
+        可放在shellmain一起来的时候加载key。esDEV_Plugin("\\drv\\key.drv", 0, 0, 1); 
+        
+*** workspace/suniv/beetles/rootfs/pwm_cfg.ini pwm配置文件，配置系统起来后cpu和ddr频率
+        请注意，此文件已经放在rootfs，跟C100不一样
+        
+        workspace/suniv/beetles/melis100.fex烧录所用bin档文件，只需重命名为bin后缀即可。跟C100一样。
+        
+*** workspace/suniv/eFex/sys_config.fex 系统配置文件，这个文件大体上无需修改。
+   基本上跟C100一致，只是对部分配置做如下说明：
+        [uart_para] 串口打印的配置，根据需要打开其中一组，进行串口打印。
+        [twi_para] C100 iic的配置，C500此项不用。
+        [twi0_para] [twi1_para] [twi2_para] C500 iic的配置，根据需要把used=1打开，驱动通过打开相应iic，例如eLIBs_fopen("B:\\BUS\\TWI0", "rb"); eLIBs_fopen("B:\\BUS\\TWI1", "rb");进行读写通讯。
+		[uart_para0] [uart_para1] [uart_para2]C500串口通讯的配置，类似iic。根据需要把相应uart_used=1打开，通过打了相应uart，例如eLIBs_fopen("B:\\BUS\\UART0", "rb"); eLIBs_fopen("B:\\BUS\\UART1", "rb");进行读写通讯。
+		[power_para]power驱动配置，根据C100移植
+		[rtc_para]rtc_exist = 0同C100, 如果无时钟rtc，则配0，有rtc则配2
+		[matrixkey_para]同C100配置
+		[tvout_para]无用
+		 [display_mode]无用
+		 [sddet_para] sd卡检测口配置
+		 [sdcard_global] used_card_no 1代表卡0,2代表卡1,3代表卡0和卡1同时
+		 [ir_para] ir配置，第一个尖括号是功能口，如果是PB3,则第一个尖括号是<3>，如果是其它IO,请咨询原厂
+		 
+		 lcd_power_used = 1 用io口来控制lcd供电
+		 lcd_power = port:PA0<1><default><default><1>
+		 
+		 lcd_pwm_used = 1 lcd pwm控制口，第一个尖括号代表功能口，如果是PE12,则为<4>，如果为PE6，则为<3>,其它请咨询原厂，或看datasheet
+		lcd_pwm = port:PE12<4><0><default><default>
+
+	    [dram_para] sdr或ddr的配置，如果是sdr，这部分跟C100一样配，如果是ddr，请参考C500公版。
+	    clk = 180 ddr烧录频率或启动频率，太高了可能跑不起来
+	    sdr_ddr             = 1 1代表ddr，0代表sdr
+		
+		[pwm1_para] pwm驱动需用到的配置文件，pwm.drv,具体请咨询原厂
+		pwm1 = port:PE6<3><0><default><default>
+        
+***       【AVIN接口】 详见头文件 com_video_in.h，请注意：需要释放其它应用，再调用avin接口，特别要释放主界面背景图。
+
+***        eSutdio：必须跟Melis500目录平级，C500专用 打包工具，主要是eDragonEx220这个跟C100不一样，其它基本一样。
+
+      

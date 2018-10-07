@@ -1,0 +1,13 @@
+call cc reg_movie_repeat
+call cc reg_sub_charset
+call cc reg_sub_color
+call cc reg_sub_delay
+call cc reg_sub_frame_color
+call cc reg_sub_gate
+call cc reg_sub_size
+call cc reg_zoom
+call cc reg_bright
+call cc reg_color_temperature
+call cc reg_contrast
+call cc reg_saturation
+call cc reg_sub_position

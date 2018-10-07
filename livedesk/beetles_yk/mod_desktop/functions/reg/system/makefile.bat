@@ -1,0 +1,13 @@
+call cc reg_audio_output
+call cc reg_auto_off
+call cc reg_channel
+call cc reg_charset
+call cc reg_close_scn
+call cc reg_detect_gate
+call cc reg_display
+call cc reg_gamma
+call cc reg_keytone_gate
+call cc reg_language
+call cc reg_volume
+call cc reg_app_restore
+call cc reg_lcd_bright

@@ -1,0 +1,11 @@
+<OSDTable>
+<Groups count="1">
+<OSDItem name="main" startid="1" maxid="1000" file="main\main.txt"/>
+</Groups>
+<LangType count="3">
+<LangItem name="ChineseS" langId="0x410"/>
+<LangItem name="ChineseT" langId="0x420"/>
+<LangItem name="English" langId="0x400"/>
+</LangType>
+<Output bin=".\lang.bin" head=".\lang.h"/>
+</OSDTable>

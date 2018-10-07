@@ -1,0 +1,396 @@
+/*
+**************************************************************************************************************
+*											         ePDK
+*						            the Easy Portable/Player Develop Kits
+*									           desktop system 
+*
+*						        	 (c) Copyright 2007-2010, ANDY, China
+*											 All Rights Reserved
+*
+* File    		: init.c
+* By      		: Andy.zhang
+* Func		: init thread
+* Version	: v1.0
+* ============================================================================================================
+* 2009-7-20 8:51:52  andy.zhang  create this file, implements the fundemental interface;
+**************************************************************************************************************
+*/
+
+#include "init.h"
+
+
+#define LANG_DIR            "e:\\lang\\lang.bin"
+#define THEME_DIR           "e:\\theme\\theme1.bin"
+#define SYS_THEME_DIR       "d:\\apps\\theme.bin"
+
+/* DBMS module path */
+#define	 DBMS_MOD_PATH      "D:\\mod\\dbms.mod"
+
+
+static int      ModDBMSID = 0;
+static __mp     *ModDBMS = NULL;
+
+static __u8     bookengine_mid = 0;
+static __mp*    bookengine_mod = NULL;
+
+
+
+/**
+ * 初始化 系统资源
+ */
+static __s32 sys_res_init(void)
+{
+    __s32 lcd_width = 0, lcd_height = 0;
+    
+    dsk_display_get_size(&lcd_width, &lcd_height);
+    __msg("----lcd_width: %d, lcd_height: %d\n", lcd_width, lcd_height);
+    
+    dsk_set_fs_charset(EPDK_CHARSET_ENM_UTF8);
+    dsk_set_isn_charset(EPDK_CHARSET_ENM_GBK);    
+    
+    //initialize lang/theme 
+    dsk_langres_init(LANG_DIR);
+    dsk_theme_init(THEME_DIR);
+	dsk_Systheme_init(SYS_THEME_DIR);
+    //__msg("lion_reg_language_get: %x\n", lion_reg_language_get());
+    // dsk_langres_set_type(lion_reg_language_get());
+    dsk_langres_set_type(EPDK_LANGUAGE_ENM_CHINESES);
+    //dsk_orchid_load_last_npl();
+    
+    //initialize walkman/keytone 
+    //dsk_wkm_init(DSK_WKM_MODE_AUDIO_MIN);
+#if (MW_PROJ_MODEL == p35tp)
+    dsk_keytone_init("d:\\res\\sounds\\chord.wav");
+#endif
+    
+    //initialize system settings
+#if (MW_PROJ_MODEL == p35tp)
+    __msg("No gamma setting\n");
+    __msg("No display setting\n");
+    //__msg("No volume setting\n");
+	dsk_volume_set(100);
+#else
+    dsk_set_gamma(lion_reg_gamma_get());
+    dsk_gamma_on();
+    lion_reg_display_set(LION_DISP_LCD);
+    dsk_display_set_lcd_bright(lion_reg_lcd_bright_get());
+    dsk_volume_set(lion_reg_volume_get());
+    dsk_display_enhance_on();
+    dsk_set_auto_off_time(lion_reg_auto_off_get());    
+#endif
+    
+    return EPDK_OK; 
+}
+
+
+/**
+ * 释放 系统资源
+ */
+static __s32 sys_res_deinit(void)
+{
+    //save system settings
+    lion_reg_lcd_bright_set(dsk_display_get_lcd_bright());
+    lion_reg_volume_set(dsk_volume_get());
+    
+    //exit walkman/keytone
+    dsk_keytone_exit();
+    dsk_wkm_exit();
+    dsk_orchid_save_npl();
+    
+    //释放语言图片资源
+    dsk_theme_exit();
+	
+    dsk_langres_exit();
+    
+    return EPDK_OK;
+}
+
+
+
+static __s32 bookengine_open(void)
+{
+    /*already open*/
+    if(bookengine_mod)
+    {
+        return EPDK_OK;
+    }
+    
+    if(bookengine_mid == NULL)
+    {
+        /* install bookengine module */
+        bookengine_mid = esMODS_MInstall("d:\\mod\\bookengine.mod", 0);
+        if(!bookengine_mid)
+        {
+            __msg("Install bookengine module failed");
+            return EPDK_FAIL;
+        }
+        __msg("install bookengine OK\n");
+    }
+    
+    if(bookengine_mod == NULL)
+    {
+        /* open bookengine module */
+        bookengine_mod = esMODS_MOpen(bookengine_mid, 0);
+        if(bookengine_mod == (__mp *)0)
+        {
+            if (bookengine_mid)
+            {
+                esMODS_MUninstall(bookengine_mid);
+                bookengine_mid	= 0;
+            }
+            __msg("esMODS_MOpen failed");
+            return EPDK_FAIL;
+        }
+        __msg("bookengine module open OK\n");
+    }
+    
+    return EPDK_OK;    
+}
+
+static __s32 bookengine_close(void)
+{
+    if(bookengine_mod)
+    {
+        esMODS_MClose(bookengine_mod);
+    }
+    
+    if(bookengine_mid)
+    {
+        esMODS_MUninstall(bookengine_mid);
+    }
+    
+    bookengine_mod = NULL;
+    bookengine_mid = NULL;
+    
+    return EPDK_OK;
+}
+
+
+static __s32 _install_dbms_mod(void)
+{
+    /* install dbms module */
+    ModDBMSID = esMODS_MInstall(DBMS_MOD_PATH, 0);
+    if(ModDBMSID == 0)
+    {
+        __wrn("Install dbms module failed");
+        return EPDK_FAIL;
+    }
+    __inf("Install dbms module succeeded\n");
+    
+    /* open dbms module */
+    ModDBMS = esMODS_MOpen(ModDBMSID, 0);
+    if(ModDBMS == (__mp *)0)
+    {
+        __wrn("Open dbms module failed");
+        return EPDK_FAIL;
+    }
+    __inf("Open dbms module succeeded\n");
+    
+    return EPDK_OK;
+}
+
+
+static void _uninstall_dbms_mod(void)
+{
+    /* uninstall dbms module    */
+    if(ModDBMS)
+    {
+        esMODS_MClose(ModDBMS);
+    }
+    if(ModDBMSID)
+    {
+        esMODS_MUninstall(ModDBMSID);
+    }
+    ModDBMS   = NULL;
+    ModDBMSID = 0;
+}
+
+
+static void _close_audio_dev(void)
+{
+    ES_FILE * p_dac = NULL;
+
+    p_dac = eLIBs_fopen("b:\\AUDIO\\CTRL", "r+");
+    if(!p_dac)
+    {
+        __err("open dac device fail!\n");
+    }
+    
+    eLIBs_fioctrl(p_dac, AUDIO_DEV_CMD_CLOSE_DEV, AUDIO_DEV_PLAY, 0);
+    eLIBs_fclose(p_dac);
+}
+
+
+static void _close_lcd(void)
+{
+    ES_FILE *disp;
+    __u32 outputtype;
+    __u32 arg[3];
+    
+    disp = eLIBs_fopen("b:\\DISP\\DISPLAY", "r+");		
+    if(!disp)
+    {
+        __wrn("open display fail\n");
+        return ;
+    }
+    
+    outputtype = eLIBs_fioctrl(disp, DISP_CMD_GET_OUTPUT_TYPE, 0, (void *)arg);
+    if(outputtype == DISP_OUTPUT_TYPE_LCD)
+    {
+        arg[0] = 0;
+        arg[1] = 0;
+        arg[2] = 0;
+        eLIBs_fioctrl(disp,DISP_CMD_LCD_OFF,0,(void *)arg);
+    }
+    
+    eLIBs_fclose(disp);
+}
+
+
+__s32 key_hook_cb(__gui_msg_t *msg)
+{
+    
+    return EPDK_OK;
+}
+
+
+__s32 tp_hook_cb(__gui_msg_t *msg)
+{
+
+    return EPDK_OK;
+}
+
+
+__s32 init_hook_cb(__gui_msg_t *msg)
+{	
+
+    return EPDK_OK;
+}
+
+static void _install_usbd_drv()
+{
+	/*enable device monitor */
+    ES_FILE     *pHwsc;
+
+    pHwsc = eLIBs_fopen("b:\\HWSC\\hwsc", "rb+");
+    if(pHwsc)
+    {
+        eLIBs_fioctrl(pHwsc, DEV_IOC_USR_HWSC_ENABLE_MONITOR, 0, NULL);
+		//eLIBs_fioctrl(pHwsc, DEV_IOC_USR_ADD_USBD_MODE, USBD_CHARGE, NULL);
+		__wrn("do not install usbd drv now...\n");
+        eLIBs_fclose(pHwsc);
+        __msg(".start device monitor .......................................\n");
+    }
+    else
+    {
+        __err("try to open b:\\HWSC\\hwsc failed!\n");
+    }
+}
+
+void process_init(void)
+{
+    __gui_msg_t msg;
+    __s32 ret = EPDK_FAIL;
+    __memit_hook_t emit_hook;
+    
+    __inf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
+    __inf("&           init process enter!          		       &\n");
+    __inf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
+    
+    /* drvier plugin */
+//	App_InsmodUsbHostDriver(1);
+//	App_InsmodUsbHostDriver(2);
+//	dsk_speak_init();
+//	dsk_speaker_turnon();
+//	esDEV_Plugin("\\drv\\ir.drv", 0, 0, 1);
+#if (MW_PROJ_MODEL == p35tp)
+    __msg("No audio.drv\n");
+    __msg("No touchpanel.drv\n");
+    esDEV_Plugin("\\drv\\audio.drv", 0, 0, 1);
+    esDEV_Plugin("\\drv\\touchpanel.drv", 0, 0, 1);	
+#else
+	esDEV_Plugin("\\drv\\audio.drv", 0, 0, 1);
+	//esDEV_Plugin("\\drv\\orchid.drv", 0, 0, 1);
+	esDEV_Plugin("\\drv\\touchpanel.drv", 0, 0, 1);	
+#endif
+	esDEV_Plugin("\\drv\\mp.drv", 0, 0, 1);	
+	//bookengine_open();
+	//_install_dbms_mod();
+	
+	/* create main win*/	
+	//init_mainwin = init_mainwin_create();		
+	//GUI_SetActiveManWin(init_mainwin);	
+	//__msg("init_mainwin = %x\n", init_mainwin);	
+	/* set message loop win */
+	//message_loop_win_set_default(init_mainwin);
+
+    
+    sys_res_init();
+    
+    
+    /* orchid */
+   // dsk_orchid_createDisk();
+    //dsk_orchid_check();  
+    
+    
+    /* messge server init*/
+#ifndef MW_PROJ_DEBUG
+	_install_usbd_drv();
+#endif
+    //msg_emit_init();
+    
+    //emit_hook.key_hook = key_hook_cb;
+    //emit_hook.tp_hook = tp_hook_cb;
+    //emit_hook.init_hook = init_hook_cb;
+    //emit_hook.user_hook = user_hook_cb;
+    
+    //msg_emit_register_hook(&emit_hook);
+    
+    __msg("-----create applet begin\n");
+    esEXEC_PCreate("d:\\apps\\applet.axf", NULL, 0, NULL);
+    __msg("-----create applet end\n");
+    //esEXEC_Run("d:\\apps\\applet.axf", NULL, 0, 0);
+	
+	__msg("----------\n");	
+}
+
+
+void process_deinit(void)
+{
+    //__inf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
+	//__inf("&           process_deinit!                          &\n");
+	//__inf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
+	
+    bookengine_close();
+    _uninstall_dbms_mod();
+    sys_res_deinit();
+	//卸载USB
+//	App_RmmodUsbHostDriver(1);
+//	App_RmmodUsbHostDriver(2);
+	
+	/* deinit message server */
+	msg_emit_deinit();
+	
+	/* framework deinit */
+	//_framework_exit();
+	
+	/* close device */
+	_close_audio_dev();
+	_close_lcd();
+		
+	/* plug out driver  */
+	esDEV_Plugout("\\drv\\mp.drv", 0);
+	esDEV_Plugout("\\drv\\touchpanel.drv", 0);	
+	esDEV_Plugout("\\drv\\orchid.drv",0); 
+	esDEV_Plugout("\\drv\\audio.drv", 0 );	
+//	esDEV_Plugout("\\drv\\ir.drv", 0 );
+	dsk_speaker_turnoff();
+	dsk_speak_exit();
+//	App_WaitForUsbHostReomveComplete(1);	
+//	App_WaitForUsbHostReomveComplete(2);
+
+    esKSRV_PowerOff();
+	
+}
+
+

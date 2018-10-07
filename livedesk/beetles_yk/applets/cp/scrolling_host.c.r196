@@ -1,0 +1,382 @@
+
+#include "cp_i.h"
+#include "scrolling_i.h"
+#include "clock.h"
+
+#ifdef THIS_DEBUG
+#undef THIS_DEBUG
+#endif
+#ifdef MW_PROJ_DEBUG
+#define THIS_DEBUG
+#endif
+
+#define ADDITIONAL_WINS     2
+
+typedef struct {
+    SCR_ScrollingWndInfo_ForHeader scrolling;
+    BuilderCreate create;
+    gg_handler root;
+    int totalWins;
+    int current;
+	int geatrue_direction;
+	int clock_en;
+	int page_step;
+    H_WIN hWins[ADDITIONAL_WINS];// This member must be the last one
+} ScrollingHostWinDescriptor;
+
+static __s32 scrollingHostWndProc(__gui_msg_t * msg)
+{
+    ScrollingHostWinDescriptor * wndDpt;
+    RECT source;
+    int i;
+    gg_handler page;
+    char *name;
+	
+    wndDpt = (ScrollingHostWinDescriptor *)GUI_WinGetAttr(msg->h_deswin);
+    if ((!wndDpt) || (-1 == EWin_CheckInherit(&wndDpt->scrolling.ewii)) ||
+        (!(wndDpt->scrolling.ewii.mask[0] & SCR_WNDINFOMASK_SHOST))) {
+        LogE("Null or wrong scrolling host window private data");
+        return -1;
+    }
+
+    switch (msg->id) {
+    case GUI_MSG_CREATE:
+		page = GG_DOMGetFirstChild(wndDpt->root);
+		if(page){
+			gg_handler inter_face;
+			gg_handler first_child;
+			int baudrate;
+			wndDpt->page_step = 0;
+			inter_face = GG_DOMGetBrotherElementByTagName(page, "interface");
+			first_child = GG_DOMGetFirstChild(inter_face);
+			baudrate = SLIB_atoi(GG_DOMGetNodeValue(GG_DOMGetBrotherElementByTagName(first_child, "baudrate")));
+			__msg("banudrate = %d\n",baudrate);
+			esDEV_Plugin("\\drv\\uart.drv", 1, (void *)baudrate, 0);
+			name = GG_DOMGetNodeValue(GG_DOMGetBrotherElementByTagName(page, "handgesture"));
+			if(0 == eLIBs_strcmp(name,"close")){
+				 __msg("close");
+				 wndDpt->geatrue_direction = 0;
+			     wndDpt->scrolling.ewii.gestureArgs.attr_x = GG_GESTURE_ATTR_LPRESS;
+		         wndDpt->scrolling.ewii.gestureArgs.attr_y = 0;
+		         wndDpt->scrolling.ewii.gestureArgs.hmsg_x[GG_GESTURE_MSG_DEST_LPRESS] = msg->h_deswin;
+		         //wndDpt->scrolling.ewii.gestureArgs.hmsg_x[GG_GESTURE_MSG_DEST_INER_SBLOCK] = msg->h_deswin;
+		         wndDpt->scrolling.ewii.gestureArgs.steps_x = 0;
+		         wndDpt->scrolling.ewii.gestureArgs.steps_y = 0;
+			     wndDpt->scrolling.ewii.mask[0] |= SCR_WNDINFOMASK_GESTURE;
+                 wndDpt->scrolling.ewii.gestureArgs.start_x = 0;
+                 wndDpt->scrolling.ewii.gestureArgs.start_y = 0;
+                 wndDpt->scrolling.ewii.gestureArgs.headboundary = 0;
+                 wndDpt->scrolling.ewii.gestureArgs.tailboundary = 0;
+                 wndDpt->scrolling.ewii.hWnd = msg->h_deswin;
+			     GG_CopyRect(&wndDpt->scrolling.wndRect, &wndDpt->scrolling.ewii.wndRect);
+		         GG_FillRect(&source, 0, 0, wndDpt->scrolling.wndRect.width, wndDpt->scrolling.wndRect.height);
+		         GG_FillSize(&wndDpt->scrolling.ewii.lyrLowSize, wndDpt->scrolling.wndRect.width * (wndDpt->totalWins + ADDITIONAL_WINS), wndDpt->scrolling.wndRect.height);
+		         wndDpt->scrolling.ewii.lyrLow = EWin_LayerCreate("ScrollingLayerLow", &wndDpt->scrolling.ewii.lyrLowSize, &source, &source, 0);
+		         GG_CopySize(&wndDpt->scrolling.ewii.lyrHigherSize, &wndDpt->scrolling.ewii.lyrLowSize);
+		         wndDpt->scrolling.ewii.lyrHigher = EWin_LayerCreate("ScrollingLayerHigher", &wndDpt->scrolling.ewii.lyrHigherSize, &source, &source, 1);
+				 wndDpt->hWins[0] = ScrollingBorderWndCreate_V0001("LeftBorderPage", &wndDpt->scrolling);
+		         page = GG_DOMGetFirstChild(GG_DOMGetBrotherElementByTagName(wndDpt->root, "window"));
+				 if(wndDpt->clock_en){
+                    i = 2;
+					wndDpt->scrolling.wndRect.x = wndDpt->scrolling.wndRect.width;
+		            wndDpt->scrolling.ewii.gestureArgs.start_x = wndDpt->scrolling.wndRect.x;
+					wndDpt->scrolling.ewii.gestureArgs.headboundary = 1;
+		            wndDpt->scrolling.ewii.gestureArgs.tailboundary = 0;
+					wndDpt->hWins[1] = DrawClockCreate("clock", &wndDpt->scrolling);
+				 }else{
+                    i = 1;
+				 }
+		         for (i; NULL != page; i++) {//GG_DOMGetBrotherElementByTagName(page, "page"))//song
+		            wndDpt->scrolling.wndRect.x = i * wndDpt->scrolling.wndRect.width;
+		            wndDpt->scrolling.ewii.gestureArgs.start_x = wndDpt->scrolling.wndRect.x;
+		            if (1 == i) {
+		                wndDpt->scrolling.ewii.gestureArgs.headboundary = 1;
+		                wndDpt->scrolling.ewii.gestureArgs.tailboundary = 0;
+		            } else if (wndDpt->totalWins == i) {
+		                wndDpt->scrolling.ewii.gestureArgs.headboundary = 0;
+		                wndDpt->scrolling.ewii.gestureArgs.tailboundary = 1;
+		            }
+		            wndDpt->hWins[i] = (*wndDpt->create)(&wndDpt->scrolling, page);
+		            page = GG_DOMGetNextBrother(page);
+		         }
+		         wndDpt->scrolling.wndRect.x = i * wndDpt->scrolling.wndRect.width;
+		         wndDpt->scrolling.ewii.gestureArgs.start_x = wndDpt->scrolling.wndRect.x;
+		         wndDpt->scrolling.ewii.gestureArgs.headboundary = 0;
+		         wndDpt->scrolling.ewii.gestureArgs.tailboundary = 0;
+		         wndDpt->hWins[i] = ScrollingBorderWndCreate_V0001("RightBorderPage", &wndDpt->scrolling);
+		         if (i != (wndDpt->totalWins + 1)) {
+		            LogE("Scrolling pages wrong (%d:%d)", i, wndDpt->totalWins);
+		            return -1;
+		         }
+		         wndDpt->current = 1;
+		         wndDpt->scrolling.wndRect.x = wndDpt->current * wndDpt->scrolling.wndRect.width;
+		         wndDpt->scrolling.ewii.gestureArgs.start_x = wndDpt->scrolling.wndRect.x;
+		    }
+			else if(0 == eLIBs_strcmp(name,"left_right")){
+                 __msg("left_right");
+				 if(SLIB_atoi(GG_DOMGetNodeValue(GG_DOMGetBrotherElementByTagName(page, "clock"))) == 1){
+				 	wndDpt->page_step = 320;
+				 }
+				 wndDpt->geatrue_direction = 1;
+				 wndDpt->scrolling.ewii.gestureArgs.attr_x = GG_GESTURE_ATTR_LPRESS | GG_GESTURE_ATTR_INER_SBLOCK;
+                 wndDpt->scrolling.ewii.gestureArgs.attr_y = 0;
+                 wndDpt->scrolling.ewii.gestureArgs.hmsg_x[GG_GESTURE_MSG_DEST_LPRESS] = msg->h_deswin;
+                 wndDpt->scrolling.ewii.gestureArgs.hmsg_x[GG_GESTURE_MSG_DEST_INER_SBLOCK] = msg->h_deswin;
+                 wndDpt->scrolling.ewii.gestureArgs.steps_x = wndDpt->scrolling.ewii.wndRect.width;
+                 wndDpt->scrolling.ewii.gestureArgs.steps_y = 0;
+				 wndDpt->scrolling.ewii.mask[0] |= SCR_WNDINFOMASK_GESTURE;
+		         wndDpt->scrolling.ewii.gestureArgs.start_x = 0;
+		         wndDpt->scrolling.ewii.gestureArgs.start_y = 0;
+		         wndDpt->scrolling.ewii.gestureArgs.headboundary = 0;
+		         wndDpt->scrolling.ewii.gestureArgs.tailboundary = 0;
+		         wndDpt->scrolling.ewii.hWnd = msg->h_deswin;
+				 GG_CopyRect(&wndDpt->scrolling.wndRect, &wndDpt->scrolling.ewii.wndRect);
+                 GG_FillRect(&source, 0, 0, wndDpt->scrolling.wndRect.width, wndDpt->scrolling.wndRect.height);
+				 GG_FillSize(&wndDpt->scrolling.ewii.lyrLowSize, wndDpt->scrolling.wndRect.width * (wndDpt->totalWins + ADDITIONAL_WINS), wndDpt->scrolling.wndRect.height);
+                 wndDpt->scrolling.ewii.lyrLow = EWin_LayerCreate("ScrollingLayerLow", &wndDpt->scrolling.ewii.lyrLowSize, &source, &source, 0);
+                 GG_CopySize(&wndDpt->scrolling.ewii.lyrHigherSize, &wndDpt->scrolling.ewii.lyrLowSize);
+                 wndDpt->scrolling.ewii.lyrHigher = EWin_LayerCreate("ScrollingLayerHigher", &wndDpt->scrolling.ewii.lyrHigherSize, &source, &source, 1);
+				 wndDpt->hWins[0] = ScrollingBorderWndCreate_V0001("LeftBorderPage", &wndDpt->scrolling);
+		         page = GG_DOMGetFirstChild(GG_DOMGetBrotherElementByTagName(wndDpt->root, "window"));
+				 if(wndDpt->clock_en){
+                    i = 2;
+					wndDpt->scrolling.wndRect.x = wndDpt->scrolling.wndRect.width;
+		            wndDpt->scrolling.ewii.gestureArgs.start_x = wndDpt->scrolling.wndRect.x;
+					wndDpt->scrolling.ewii.gestureArgs.headboundary = 1;
+		            wndDpt->scrolling.ewii.gestureArgs.tailboundary = 0;
+					wndDpt->hWins[1] = DrawClockCreate("clock", &wndDpt->scrolling);
+				 }else{
+                    i = 1;
+				 }
+		         for (i; NULL != page; i++) {//GG_DOMGetBrotherElementByTagName(page, "page"))//song
+		            wndDpt->scrolling.wndRect.x = i * wndDpt->scrolling.wndRect.width;
+		            wndDpt->scrolling.ewii.gestureArgs.start_x = wndDpt->scrolling.wndRect.x;
+		            if (1 == i) {
+		                wndDpt->scrolling.ewii.gestureArgs.headboundary = 1;
+		                wndDpt->scrolling.ewii.gestureArgs.tailboundary = 0;
+		            } else if (wndDpt->totalWins == i) {
+		                wndDpt->scrolling.ewii.gestureArgs.headboundary = 0;
+		                wndDpt->scrolling.ewii.gestureArgs.tailboundary = 1;
+		            }else{
+                        wndDpt->scrolling.ewii.gestureArgs.headboundary = 0;
+		                wndDpt->scrolling.ewii.gestureArgs.tailboundary = 0;
+					}
+		            wndDpt->hWins[i] = (*wndDpt->create)(&wndDpt->scrolling, page);
+		            page = GG_DOMGetNextBrother(page);
+		         }
+		         wndDpt->scrolling.wndRect.x = i * wndDpt->scrolling.wndRect.width;
+		         wndDpt->scrolling.ewii.gestureArgs.start_x = wndDpt->scrolling.wndRect.x;
+		         wndDpt->scrolling.ewii.gestureArgs.headboundary = 0;
+		         wndDpt->scrolling.ewii.gestureArgs.tailboundary = 0;
+		         wndDpt->hWins[i] = ScrollingBorderWndCreate_V0001("RightBorderPage", &wndDpt->scrolling);
+		         if (i != (wndDpt->totalWins + 1)) {
+		            LogE("Scrolling pages wrong (%d:%d)", i, wndDpt->totalWins);
+		            return -1;
+		         }
+		         wndDpt->current = 1;
+		         wndDpt->scrolling.wndRect.x = wndDpt->current * wndDpt->scrolling.wndRect.width;
+		         wndDpt->scrolling.ewii.gestureArgs.start_x = wndDpt->scrolling.wndRect.x;
+			}else if(0 == eLIBs_strcmp(name,"up_down")){
+                __msg("up_down");
+				if(SLIB_atoi(GG_DOMGetNodeValue(GG_DOMGetBrotherElementByTagName(page, "clock"))) == 1){
+				   wndDpt->page_step = 240;
+				}
+				 wndDpt->geatrue_direction = 2;
+				 wndDpt->scrolling.ewii.gestureArgs.attr_x = GG_GESTURE_ATTR_LPRESS;
+                 wndDpt->scrolling.ewii.gestureArgs.attr_y = GG_GESTURE_ATTR_INER_SBLOCK;
+                 wndDpt->scrolling.ewii.gestureArgs.hmsg_x[GG_GESTURE_MSG_DEST_LPRESS] = msg->h_deswin;
+                 wndDpt->scrolling.ewii.gestureArgs.hmsg_y[GG_GESTURE_MSG_DEST_INER_SBLOCK] = msg->h_deswin;
+                 wndDpt->scrolling.ewii.gestureArgs.steps_x = 0;
+                 wndDpt->scrolling.ewii.gestureArgs.steps_y = wndDpt->scrolling.ewii.wndRect.height;
+				 wndDpt->scrolling.ewii.mask[0] |= SCR_WNDINFOMASK_GESTURE;
+		         wndDpt->scrolling.ewii.gestureArgs.start_x = 0;
+		         wndDpt->scrolling.ewii.gestureArgs.start_y = 0;
+		         wndDpt->scrolling.ewii.gestureArgs.headboundary = 0;
+		         wndDpt->scrolling.ewii.gestureArgs.tailboundary = 0;
+		         wndDpt->scrolling.ewii.hWnd = msg->h_deswin;
+				 GG_CopyRect(&wndDpt->scrolling.wndRect, &wndDpt->scrolling.ewii.wndRect);
+                 GG_FillRect(&source, 0, 0, wndDpt->scrolling.wndRect.width, wndDpt->scrolling.wndRect.height);
+				 GG_FillSize(&wndDpt->scrolling.ewii.lyrLowSize, wndDpt->scrolling.wndRect.width,wndDpt->scrolling.wndRect.height *(wndDpt->totalWins + ADDITIONAL_WINS));
+                 wndDpt->scrolling.ewii.lyrLow = EWin_LayerCreate("ScrollingLayerLow", &wndDpt->scrolling.ewii.lyrLowSize, &source, &source, 0);
+                 GG_CopySize(&wndDpt->scrolling.ewii.lyrHigherSize, &wndDpt->scrolling.ewii.lyrLowSize);
+                 wndDpt->scrolling.ewii.lyrHigher = EWin_LayerCreate("ScrollingLayerHigher", &wndDpt->scrolling.ewii.lyrHigherSize, &source, &source, 1);
+				 wndDpt->hWins[0] = ScrollingBorderWndCreate_V0001("LeftBorderPage", &wndDpt->scrolling);
+				 if(wndDpt->clock_en){
+                    i = 2;
+					wndDpt->scrolling.wndRect.y = wndDpt->scrolling.wndRect.height;
+		            wndDpt->scrolling.ewii.gestureArgs.start_y = wndDpt->scrolling.wndRect.y;
+					wndDpt->scrolling.ewii.gestureArgs.headboundary = 1;
+		            wndDpt->scrolling.ewii.gestureArgs.tailboundary = 0;
+					wndDpt->hWins[1] = DrawClockCreate("clock",&wndDpt->scrolling);
+				 }else{
+                    i = 1;
+				 }
+				 __here__;
+				 page = GG_DOMGetFirstChild(GG_DOMGetBrotherElementByTagName(wndDpt->root, "window"));
+		         for (i; NULL != page; i++) {//GG_DOMGetBrotherElementByTagName(page, "page"))//song
+		            wndDpt->scrolling.wndRect.y = i * wndDpt->scrolling.wndRect.height;
+		            wndDpt->scrolling.ewii.gestureArgs.start_y = wndDpt->scrolling.wndRect.y;
+		            if (1 == i) {
+		                wndDpt->scrolling.ewii.gestureArgs.headboundary = 1;
+		                wndDpt->scrolling.ewii.gestureArgs.tailboundary = 0;
+		            } else if (wndDpt->totalWins == i) {
+		                wndDpt->scrolling.ewii.gestureArgs.headboundary = 0;
+		                wndDpt->scrolling.ewii.gestureArgs.tailboundary = 1;
+		            }else{
+                        wndDpt->scrolling.ewii.gestureArgs.headboundary = 0;
+		                wndDpt->scrolling.ewii.gestureArgs.tailboundary = 0;
+					}
+		            wndDpt->hWins[i] = (*wndDpt->create)(&wndDpt->scrolling, page);
+		            page = GG_DOMGetNextBrother(page);
+		         }
+		         wndDpt->scrolling.wndRect.y = i * wndDpt->scrolling.wndRect.height;
+		         wndDpt->scrolling.ewii.gestureArgs.start_y = wndDpt->scrolling.wndRect.y;
+		         wndDpt->scrolling.ewii.gestureArgs.headboundary = 0;
+		         wndDpt->scrolling.ewii.gestureArgs.tailboundary = 0;
+		         wndDpt->hWins[i] = ScrollingBorderWndCreate_V0001("RightBorderPage", &wndDpt->scrolling);
+		         if (i != (wndDpt->totalWins + 1)) {
+		            LogE("Scrolling pages wrong (%d:%d)", i, wndDpt->totalWins);
+		            return -1;
+		         }
+		         wndDpt->current = 1;
+		         wndDpt->scrolling.wndRect.y = wndDpt->current * wndDpt->scrolling.wndRect.height;
+		         wndDpt->scrolling.ewii.gestureArgs.start_y = wndDpt->scrolling.wndRect.y;
+			}
+		}else{
+             __msg("page failure");
+			 return 0;
+		}
+        
+        // wndDpt->scrolling.ewii.wndRect, don't set, inherit from parent window
+        GUI_LyrWinSetSrcWindow(wndDpt->scrolling.ewii.lyrLow, &wndDpt->scrolling.wndRect);
+        GUI_LyrWinSetSrcWindow(wndDpt->scrolling.ewii.lyrHigher, &wndDpt->scrolling.wndRect);
+        GUI_WinSetFocusChild(wndDpt->hWins[wndDpt->current]);
+        GUI_LyrWinSetSta(wndDpt->scrolling.ewii.lyrLow, GUI_LYRWIN_STA_ON);
+        GUI_LyrWinSetSta(wndDpt->scrolling.ewii.lyrHigher, GUI_LYRWIN_STA_ON);
+        wndDpt->root = GG_NULL;
+        break;
+    case GUI_MSG_DESTROY:
+        if (wndDpt->scrolling.ewii.lyrHigher) {
+            GUI_LyrWinDelete(wndDpt->scrolling.ewii.lyrHigher);
+        }
+        if (wndDpt->scrolling.ewii.lyrLow) {
+            GUI_LyrWinDelete(wndDpt->scrolling.ewii.lyrLow);
+        }
+        esMEMS_Mfree(0, wndDpt);
+        break;
+    case GUI_MSG_USER_GESTURE_MOVE:
+#ifdef THIS_DEBUG
+        LogMI("Move direction: %d, distance: %d", HISWORD(msg->dwAddData2), LOSWORD(msg->dwAddData2));
+#endif
+        __msg("gestrue = %d",wndDpt->geatrue_direction);
+        if(wndDpt->geatrue_direction == 1){
+            GG_FillRect(&source, LOSWORD(msg->dwAddData2), 0, wndDpt->scrolling.wndRect.width, wndDpt->scrolling.wndRect.height);
+            GUI_LyrWinSetSrcWindow(wndDpt->scrolling.ewii.lyrLow, &source);
+            GUI_LyrWinSetSrcWindow(wndDpt->scrolling.ewii.lyrHigher, &source);
+        }else if(wndDpt->geatrue_direction == 2){
+            GG_FillRect(&source, 0, LOSWORD(msg->dwAddData2), wndDpt->scrolling.wndRect.width, wndDpt->scrolling.wndRect.height);
+		    GUI_LyrWinSetSrcWindow(wndDpt->scrolling.ewii.lyrLow, &source);
+		    GUI_LyrWinSetSrcWindow(wndDpt->scrolling.ewii.lyrHigher, &source);
+		}
+        break;
+    case GUI_MSG_USER_GESTURE_DONE:
+#ifdef THIS_DEBUG
+        LogMI("Done direction: %d, distance: %d", HISWORD(msg->dwAddData2), LOSWORD(msg->dwAddData2));
+#endif
+        if(wndDpt->geatrue_direction == 1){
+			__msg("1");
+			if(HISWORD(msg->dwAddData2) == 100){
+                GG_FillRect(&source, LOSWORD(msg->dwAddData2) + wndDpt->page_step, 0, wndDpt->scrolling.wndRect.width, wndDpt->scrolling.wndRect.height);
+				wndDpt->scrolling.wndRect.x = LOSWORD(msg->dwAddData2) + wndDpt->page_step;
+			}else{
+				GG_FillRect(&source, LOSWORD(msg->dwAddData2) + 0, 0, wndDpt->scrolling.wndRect.width, wndDpt->scrolling.wndRect.height);
+				wndDpt->scrolling.wndRect.x = LOSWORD(msg->dwAddData2);
+			}
+            GUI_LyrWinSetSrcWindow(wndDpt->scrolling.ewii.lyrLow, &source);
+            GUI_LyrWinSetSrcWindow(wndDpt->scrolling.ewii.lyrHigher, &source);
+            wndDpt->scrolling.ewii.gestureArgs.start_x = wndDpt->scrolling.wndRect.x;
+            wndDpt->current = wndDpt->scrolling.wndRect.x / wndDpt->scrolling.wndRect.width;
+        }else if(wndDpt->geatrue_direction == 2){
+            __msg("2");
+			if(HISWORD(msg->dwAddData2) == 100){
+				GG_FillRect(&source, 0, LOSWORD(msg->dwAddData2) + wndDpt->page_step, wndDpt->scrolling.wndRect.width, wndDpt->scrolling.wndRect.height);
+				wndDpt->scrolling.wndRect.y = LOSWORD(msg->dwAddData2) + wndDpt->page_step;
+			}else{
+				GG_FillRect(&source, 0, LOSWORD(msg->dwAddData2) + 0, wndDpt->scrolling.wndRect.width, wndDpt->scrolling.wndRect.height);
+				wndDpt->scrolling.wndRect.y = LOSWORD(msg->dwAddData2);
+			}
+		    GUI_LyrWinSetSrcWindow(wndDpt->scrolling.ewii.lyrLow, &source);
+		    GUI_LyrWinSetSrcWindow(wndDpt->scrolling.ewii.lyrHigher, &source);
+            wndDpt->scrolling.ewii.gestureArgs.start_y = wndDpt->scrolling.wndRect.y;
+            wndDpt->current = wndDpt->scrolling.wndRect.y / wndDpt->scrolling.wndRect.height;
+		}
+        GUI_WinSetFocusChild(wndDpt->hWins[wndDpt->current]);
+        break;
+    case GUI_MSG_USER_GESTURE_LPRESS:
+        msg->h_deswin = wndDpt->scrolling.ewii.desktop;
+        msg->id = GUI_MSG_USER_WIN_CHANGE;
+        msg->dwAddData2 = HOME_SUBWIN_SETTING;
+        GUI_PostMessage(msg);
+        break;
+    default:
+#ifdef THIS_DEBUG
+        LogMI("Unhandled scrolling host window message (%d)", msg->id);
+#endif
+		GUI_ManWinDefaultProc(msg);
+        break;
+    }
+    return 0;
+}
+
+H_WIN SCR_ScrollingHostBuilder(EWin_InheritInfo_ForHeader * inherit, BuilderCreate create, gg_handler windowNode)
+{
+    int totalWins;
+	gg_handler window;
+	gg_handler properties;
+	int clock;
+	
+    ScrollingHostWinDescriptor * wndDpt;
+
+    if (-1 == EWin_CheckInherit(inherit)) {
+        return NULL;
+    }
+    window = GG_DOMGetBrotherElementByTagName(windowNode,"window");
+    totalWins = GG_DOMGetElementsByTagName(window, "page");
+	
+	properties = GG_DOMGetFirstChild(windowNode);
+	properties = GG_DOMGetBrotherElementByTagName(properties,"clock");
+	if(properties){
+       totalWins++;
+	   clock = 1;
+	   __msg("clock exist\n");
+	}else{
+       clock = 0;
+	   __msg("clock not exist\n");
+	}
+	
+#ifdef THIS_DEBUG
+    LogD("Total windows (%d)", totalWins);
+#endif
+    if (totalWins < 1) {
+        LogE("Argument error (%d)", totalWins);
+        return NULL;
+    }
+
+    wndDpt = (ScrollingHostWinDescriptor *)esMEMS_Malloc(0, (sizeof(ScrollingHostWinDescriptor) + (totalWins * sizeof(H_WIN))));
+    if (NULL == wndDpt) {
+        LogE("Malloc failed");
+        return NULL;
+    }
+    eLIBs_memset(wndDpt, 0, sizeof(ScrollingHostWinDescriptor));
+    eLIBs_memcpy(wndDpt, inherit, sizeof(EWin_InheritInfo_ForHeader));
+    wndDpt->scrolling.ewii.mask[0] = SCR_WNDINFOMASK_SHOST;
+
+    wndDpt->create = create;
+    wndDpt->root = windowNode;
+    wndDpt->totalWins = totalWins;
+    wndDpt->clock_en = clock;
+	
+    return EWin_MainWindowCreate("ScrollingHostWindow", (EWin_InheritInfo_ForHeader *)wndDpt, scrollingHostWndProc);
+}
+
+

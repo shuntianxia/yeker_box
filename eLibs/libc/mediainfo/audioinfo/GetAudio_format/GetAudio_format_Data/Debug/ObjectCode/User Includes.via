@@ -1,0 +1,1 @@
+ -I. -I"Debug" -I"Release" -I".." -I"..\\AudioInfoObj" -I"..\\AudioInfoObj\\Debug"

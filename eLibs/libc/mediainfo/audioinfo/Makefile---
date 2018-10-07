@@ -1,0 +1,64 @@
+STATIC=1
+
+CC=arm-none-linux-gnueabi-gcc
+AR=arm-none-linux-gnueabi-ar
+
+LIBPATH=/home/${USER}/CedarX-Projects/CedarX/output
+BUILDPATH=.
+CFLAGS=-Wall 
+CFLAGS+=-I/home/${USER}/eLDK/includes/
+CFLAGS+=-I../
+CFLAGS+=-O2 -D__OS_LINUX
+
+LIBSRC =	AudioInfo_MID.c \
+	Tag_VBRI.c \
+	Tag_Enoding.c \
+	AudioInfo_MP3.c \
+	AudioInfo_FLAC.c \
+	AudioInfo_AAC.c \
+	Tag_ID3.c \
+	AudioInfo_OGG.c \
+	AudioInfo_AMR.c \
+	AudioInfo_WAV.c \
+	GetAudio_format.c \
+	bitstream.c \
+	Tag_OGG.c \
+	Tag_APE.c \
+	AudioInfo_WMA.c \
+	Tag_XING.c \
+	AudioInfo_ATRAC.c \
+	AudioInfo_APE.c \
+	AudioInfo_DTS.c \
+	AudioInfo_AC3.c \
+	AudioInfo_RA.c \
+	AudioInfo_CAF.c   
+
+ifeq ($(STATIC),1)
+LIB=$(LIBPATH)/libGetAudio_format.a
+else
+LIB=$(LIBPATH)/libGetAudio_format.so
+CFLAGS+=-fPIC
+endif
+
+
+LIBOBJ=$(addprefix $(BUILDPATH)/, $(addsuffix .o, $(basename $(LIBSRC))))
+
+all: $(LIB)
+
+lib:$(LIB)
+
+$(BUILDPATH)/%.o:%.c
+	$(CC) $(CFLAGS) -o $@ -c $<
+	
+ifeq ($(STATIC),1)
+$(LIB):$(LIBOBJ)
+	$(AR) -rcs $@ $^
+else
+$(LIB):$(LIBOBJ)
+	$(CC) -shared -o $@ $^
+endif
+
+
+clean:
+	rm -f $(LIB) $(LIBOBJ)
+	

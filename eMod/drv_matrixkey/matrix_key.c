@@ -1,0 +1,573 @@
+/*
+*********************************************************************************************************
+*                                                    MELIS
+*                                    the Easy Portable/Player Develop Kits
+*                                           Matrix Key Driver Module
+*
+*                                    (c) Copyright 2006-2010, All winners Co,Ld.
+*                                             All Rights Reserved
+*
+* File    : matrix_key.c
+* By      : james deng <csjamesdeng@gmail.com>
+* Version : 1.0.0
+* Date    : 2011-04-25
+* Descript:
+* Update  : date              author         ver       notes
+*           2011-04-25        james deng     1.0.0     build the file.
+*********************************************************************************************************
+*/
+ 
+#include "drv_matrix_key_i.h"
+
+
+#define MENU        0x00000001
+#define VOL_ADD     0x00000002
+#define VOL_DEC     0x00000004
+#define LEFT        0x00000008
+#define RIGHT       0x00000010
+#define ENTER       0x00000020
+
+
+static __u32 g_pw_off_support = 1;//为1则代表使用PA3口检测关机，和jtag口复用
+
+static __u32 input_row1 = 0;
+static __u32 input_row2 = 0;
+static __u32 output_col = 0;
+
+static __u32 pw_off = 0;
+
+/* 扫描周期 */
+static __s32 period;
+/* 关机时间 */
+static __s32 pw_off_time;
+/* 按键按下延迟的时间，设为扫描周期的倍数，提高用户体验 */
+static __s32 key_down_delay;
+
+static __s32 volatile is_power_off = EPDK_FALSE;
+static __krnl_stmr_t *timer = NULL;
+
+static __u8 matrix_key_tid = 0;
+
+//以下定义为了解决在组合按键检测情况下可能出现的按键down、up消息不配对的情况
+static __u32 g_key_down_tbl[KEY_CNT] = {0};
+
+/********************************************************************************************************
+* Function:    matrix_key_read
+* Description: read routine
+* Input：      
+* Output：     
+* Other：      
+*********************************************************************************************************/
+
+static __u32 matrix_key_read()
+{
+	__s32 d1 = 0, d2 = 0, d3 = 0;
+
+	if(1 == g_pw_off_support)	/* 电源键按下时优先返回 */
+	{
+		d1 = esPINS_ReadPinData(pw_off, 0);
+		if (d1)
+		{
+			__msg("return KPAD_POWEROFF\n");
+			return KPAD_POWEROFF;
+		}
+	}
+    	
+	esPINS_SetPinIO(input_row1, EPDK_FALSE, NULL);
+	esPINS_SetPinIO(input_row2, EPDK_FALSE, NULL);
+	esPINS_SetPinIO(output_col, EPDK_FALSE, NULL);
+
+	esPINS_SetPinPull(input_row1, PIN_PULL_DOWN, NULL);//输入时用esPINS_SetPinPull
+	esPINS_SetPinPull(input_row2, PIN_PULL_DOWN, NULL);
+	esPINS_SetPinPull(output_col, PIN_PULL_DOWN, NULL);
+	
+	d1 = esPINS_ReadPinData(input_row1, NULL);
+	if (d1)
+	{
+		return KPAD_VOICEUP;
+	} 
+    
+	d2 = esPINS_ReadPinData(input_row2, 0);
+	if (d2)
+	{
+		return KPAD_MENU;
+	} 
+
+    d3 = esPINS_ReadPinData(output_col, 0);
+    if (d3)
+    {
+    	return KPAD_VOICEDOWN;
+    } 
+
+	esPINS_SetPinIO(output_col, EPDK_TRUE, NULL);
+	esPINS_WritePinData(output_col, 1, NULL); 
+	d1 = esPINS_ReadPinData(input_row1, NULL);
+	if (d1)
+	{
+		return KPAD_LEFT;
+	} 
+
+	d2 = esPINS_ReadPinData(input_row2, 0);
+	if (d2)
+	{
+		return KPAD_RIGHT;
+	}
+
+	esPINS_SetPinIO(input_row2, EPDK_TRUE, NULL);
+	esPINS_WritePinData(input_row2, 1, NULL);
+	d1 = esPINS_ReadPinData(input_row1, NULL);
+	if (d1)
+	{
+		return KPAD_ENTER;
+	}
+
+    return 0;
+}
+
+/********************************************************************************************************
+* Function:    matrix_key_down
+* Description: matrix key down
+* Input：      
+* Output：     
+* Other：      
+*********************************************************************************************************/
+static void matrix_key_down(__u32 key_value)
+{
+    __key_msg_t msg;
+    
+    msg.key_value = key_value;
+    msg.flag = 1;
+    
+    dev_matrix_key_ioctrl(0, DRV_KEY_CMD_PUTKEY, 0, &msg);
+
+    g_key_down_tbl[key_value]++;
+}
+
+/********************************************************************************************************
+* Function:    matrix_key_up
+* Description: matrix key up
+* Input：      
+* Output：     
+* Other：      
+*********************************************************************************************************/
+static void matrix_key_up(__u32 key_value)
+{
+    __key_msg_t msg;
+
+    if(g_key_down_tbl[key_value] > 0)
+    {
+        g_key_down_tbl[key_value]--;
+    }
+    else
+    {
+        return ;
+    }
+    
+    msg.key_value = key_value;
+    msg.flag = 0;
+    
+    dev_matrix_key_ioctrl(0, DRV_KEY_CMD_PUTKEY, 0, &msg);
+}
+
+//全部按键松开后，用于补充发送未发送的key up消息
+static void matrix_match_key_down(void)
+{
+    __s32 i;
+    __s32 key_cnt;
+
+    key_cnt = sizeof(g_key_down_tbl)/sizeof(g_key_down_tbl[0]);
+
+    for(i = 0 ; i < key_cnt ; i++)
+    {
+        while(g_key_down_tbl[i] > 0)
+        {
+            matrix_key_up(i);
+        }
+    }
+}
+
+/********************************************************************************************************
+* Function:    power_off_timer
+* Description: 
+* Input：      
+* Output：     
+* Other：      
+*********************************************************************************************************/
+static void power_off_timer(void* arg)
+{
+    matrix_key_down(KPAD_POWEROFF);
+    matrix_key_up(KPAD_POWEROFF);
+	is_power_off = EPDK_TRUE;
+}
+
+/********************************************************************************************************
+* Function:    matrix_key_thread
+* Description: matrix key running thread
+* Input：      
+* Output：     
+* Other：      
+*********************************************************************************************************/
+static void matrix_key_thread(void *p_arg)
+{    
+    __u32 old_key, new_key, key = 0;
+	__s32 delay;
+
+    //以下定义用于自动测试
+    static int auto_test_enable;
+    
+    {//如果是debug模式，则自动测试，随机向系统发按键消息
+        if(EPDK_OK == esCFG_GetKeyValue("auto_test_para", "auto_test_enable", &auto_test_enable, 1))
+        {
+            __msg("***********auto_test_enable********=%d\n", auto_test_enable);
+        }
+        else
+        {
+            auto_test_enable = 0;
+        }
+        __msg("***********auto_test_enable********=%d\n", auto_test_enable);
+    } 
+    
+    while (1)
+    {
+        if (esKRNL_TDelReq(OS_PRIO_SELF) == OS_TASK_DEL_REQ)
+        {
+            break;
+        }              
+
+		old_key = matrix_key_read();
+        //enter键被优先检测，因此如果不是enter键，
+        //说明enter键没被按下或者已经抬起，需重置定时器,防止组合键的时候关机处理不正确
+        if(KPAD_POWEROFF != old_key && old_key)
+        {
+            __msg("stop pw-off timmer...\n");
+            if (esKRNL_TmrStateGet(timer) == OS_TMR_STATE_RUNNING)
+    		{
+    			esKRNL_TmrStop(timer, OS_TMR_OPT_NONE, NULL);
+
+    			if (is_power_off)
+    			{
+    				is_power_off = EPDK_FALSE;
+    			}
+            }
+        }
+        
+        
+		delay = 0;
+        __here__;
+		while (1)
+		{
+			esKRNL_TimeDly(period);
+			new_key = matrix_key_read();
+            //enter键被优先检测，因此如果不是enter键，
+            //说明enter键没被按下或者已经抬起，需重置定时器,防止组合键的时候关机处理不正确        
+            if(KPAD_POWEROFF != new_key && new_key)
+            {
+                __msg("stop pw-off timmer...\n");
+                if (esKRNL_TmrStateGet(timer) == OS_TMR_STATE_RUNNING)
+        		{
+        			esKRNL_TmrStop(timer, OS_TMR_OPT_NONE, NULL);
+        			if (is_power_off)
+        			{
+        				is_power_off = EPDK_FALSE;
+        			}
+                }
+            }
+
+			if (new_key) /* 读到一个有效值 */
+			{
+                __here__;
+				/* 前后两次读到的值不同，并且前面读到的值有效 */
+				if ((new_key ^ old_key) && old_key)
+				{
+                    __msg("new_key=%d\n", new_key);
+                    __msg("old_key=%d\n", old_key);
+                    __here__;
+					break;
+				}
+                __here__;
+
+                if(KPAD_VOICEUP== new_key)//如按下了menu键，开始自动测试
+                {
+                    __here__;
+                    if(1 == auto_test_enable)
+                    {
+                        __here__;
+                        while(1)
+                        {        
+                            __here__;
+                            matrix_key_down(KPAD_RIGHT);
+
+                            esKRNL_TimeDly(2);
+                            matrix_key_up(KPAD_RIGHT);
+
+                            esKRNL_TimeDly(10+eLIBs_ramdom(20));
+                            continue;                    
+                        }
+                    }
+                }
+				
+				delay += period;
+
+				if (new_key == KPAD_POWEROFF)
+				{
+                    __msg("start pw-off timmer...\n");
+					/* start timer if not start, otherwise do nothing */
+					if (esKRNL_TmrStateGet(timer) == OS_TMR_STATE_STOPPED)
+					{
+					    key = new_key;
+						esKRNL_TmrStart(timer);
+					}
+				}
+				else if (!(delay ^ key_down_delay))
+				{
+                    __here__;
+					/* 发送消息前检查是否延迟是否达到事先设定的阈值 */
+				    key = new_key;
+				    matrix_key_down(key);
+				}
+                __here__;
+			}
+			else if (key) /* 按键弹起 */
+			{
+                __here__;
+			    if (key == KPAD_POWEROFF)
+			    {
+                    __msg("stop pw-off timmer...\n");
+                    if (esKRNL_TmrStateGet(timer) == OS_TMR_STATE_RUNNING)
+    				{
+    					esKRNL_TmrStop(timer, OS_TMR_OPT_NONE, NULL);
+    
+    					if (is_power_off)
+    					{
+    						is_power_off = EPDK_FALSE;
+    					}
+    					else
+    					{
+    						/* 发送消息前检查是否延迟是否达到事先设定的阈值 */
+    						if (delay >= key_down_delay)
+    						{
+    	                        matrix_key_down(KPAD_ENTER);
+                                esKRNL_TimeDly(10);
+    	                        matrix_key_up(KPAD_ENTER);
+    						}
+    					}
+    				}
+    			}
+				else
+				{
+                    __here__;
+				    matrix_key_up(key);
+				}
+				
+				key = 0;
+			    break; /* 退出内循环 */
+			}
+			else /* 读到一个无效值 */
+			{
+                __here__;
+			    delay = 0;
+                matrix_match_key_down();
+			}
+		}
+    }
+}
+
+/********************************************************************************************************
+* Function:    matrix_key_init
+* Description: initial matrix key
+* Input：      
+* Output：     
+* Other：      
+*********************************************************************************************************/
+__s32 matrix_key_init(void)
+{
+    __s32            ret;
+    user_gpio_set_t  gpio_set[1];
+
+    {//如果是debug模式，则把pw-off口给jtag用
+        __target_para_t target;
+        esKSRV_GetTargetPara(&target);
+        __msg("target.debugenable=%d\n", target.debugenable);
+        if(target.debugenable == EPDK_TRUE)
+        {
+            g_pw_off_support = 0;
+        }
+        else
+        {
+            g_pw_off_support = 1;
+        }
+    }   
+
+	/* 申请input_row1 */
+    eLIBs_memset(gpio_set, 0, sizeof(user_gpio_set_t));
+    ret = esCFG_GetKeyValue("matrixkey_para", "input_row1", (int *)gpio_set, sizeof(user_gpio_set_t)/4);
+    if (!ret)
+    {
+        input_row1 = esPINS_PinGrpReq(gpio_set, 1);
+        if (!input_row1)
+        {
+            __wrn("request input_row1 pin failed\n");
+            return EPDK_FAIL;
+        }
+    }
+    else
+    {
+        __wrn("fetch para from script failed\n");
+        return EPDK_FAIL;
+    }
+
+	ret = esPINS_SetPinPull(input_row1, PIN_PULL_DOWN, NULL);
+	if (ret)
+	{
+		__wrn("pull input_row1 failed\n");
+		return EPDK_FAIL;
+	}
+
+	/* 申请input_row2 */
+    eLIBs_memset(gpio_set, 0, sizeof(user_gpio_set_t));
+    ret = esCFG_GetKeyValue("matrixkey_para", "input_row2", (int *)gpio_set, sizeof(user_gpio_set_t)/4);
+    if (!ret)
+    {
+        input_row2 = esPINS_PinGrpReq(gpio_set, 1);
+        if (!input_row2)
+        {
+            __wrn("request input_row2 pin failed\n");
+            return EPDK_FAIL;
+        }
+    }
+    else
+    {
+        __wrn("fetch para from script failed\n");
+        return EPDK_FAIL;
+    }
+
+	ret = esPINS_SetPinPull(input_row2, PIN_PULL_DOWN, NULL);
+	if (ret)
+	{
+		__wrn("pull input_row2 failed\n");
+		return EPDK_FAIL;
+	}
+
+	/* 申请output_col */
+    eLIBs_memset(gpio_set, 0, sizeof(user_gpio_set_t));
+    ret = esCFG_GetKeyValue("matrixkey_para", "output_col", (int *)gpio_set, sizeof(user_gpio_set_t)/4);
+    if (!ret)
+    {
+        output_col = esPINS_PinGrpReq(gpio_set, 1);
+        if (!output_col)
+        {
+            __wrn("request output_col pin failed\n");
+            return EPDK_FAIL;
+        }
+    }
+    else
+    {
+        __wrn("fetch para from script failed\n");
+        return EPDK_FAIL;
+    }
+
+	ret = esPINS_SetPinPull(output_col, PIN_PULL_UP, NULL);
+	if (ret)
+	{
+		__wrn("pull output_col failed\n");
+		return EPDK_FAIL;
+	}
+	
+    if(1 == g_pw_off_support)
+    {
+    	/* 申请Power Off */
+    	eLIBs_memset(gpio_set, 0, sizeof(user_gpio_set_t));
+    	ret = esCFG_GetKeyValue("matrixkey_para", "pw_off", (int *)gpio_set, sizeof(user_gpio_set_t)/4);
+    	if (!ret)
+    	{
+    		pw_off = esPINS_PinGrpReq(gpio_set, 1);
+    		if (!pw_off)
+    		{
+    			__wrn("request Power Off pin failed\n");
+    			return EPDK_FAIL;
+    		}
+    	}
+    	else
+    	{
+    		__wrn("fetch para from script failed\n");
+    		return EPDK_FAIL;
+    	}
+    }
+
+	/* 读取扫描周期 */
+	ret = esCFG_GetKeyValue("matrixkey_para", "period", &period, 1);
+	if (ret)
+	{
+	    __wrn("fetch para: period from script failed\n");
+	    period = 2;
+	}
+	__msg("matrix key update period: %d\n", period);
+	
+	/* 读取关机时间 */
+	ret = esCFG_GetKeyValue("matrixkey_para", "pw_off_time", &pw_off_time, 1);
+	if (ret)
+	{
+	    __wrn("fetch para: pw_off_time from script failed\n");
+		pw_off_time = 2000;
+	}
+	__msg("power off time: %d\n", pw_off_time);
+
+	/* 读取按键按下延迟的时间 */
+	ret = esCFG_GetKeyValue("matrixkey_para", "key_down_delay", &key_down_delay, 1);
+	if (ret)
+	{
+		__wrn("fetch para: key_down_delay from script failed\n");
+		key_down_delay = 3 * period;
+	}
+	__msg("key down delay: %d\n", key_down_delay);
+
+	/* 创建timer */
+	timer = esKRNL_TmrCreate(
+				pw_off_time, 
+				OS_TMR_OPT_PRIO_HIGH | OS_TMR_OPT_PERIODIC,
+				(OS_TMR_CALLBACK)power_off_timer,
+				NULL);
+	if (!timer)
+	{
+		__wrn("create timer failed\n");
+		esKRNL_TmrDel(timer);
+		timer = NULL;
+	}
+
+    matrix_key_tid = esKRNL_TCreate(matrix_key_thread, 0, 0x800, KRNL_priolevel1);
+    
+    __msg("matrix key init finish\n");
+    
+    return EPDK_OK;
+}
+
+/********************************************************************************************************
+* Function:    matrix_key_exit
+* Description: exit matrix key
+* Input：      
+* Output：     
+* Other：      
+*********************************************************************************************************/
+__s32 matrix_key_exit(void)
+{
+    esPINS_PinGrpRel(input_row1, 0);
+    esPINS_PinGrpRel(input_row2, 0);
+    esPINS_PinGrpRel(output_col, 0);
+    if(1 == g_pw_off_support)
+	{
+        esPINS_PinGrpRel(pw_off, 0);
+    }
+    
+
+    esKRNL_TDel(matrix_key_tid);
+
+	if (!timer)
+	{
+		esKRNL_TmrDel(timer);
+		timer = NULL;
+	}
+
+    __msg("matrix key exit finish\n");
+    
+    return EPDK_OK;
+}

@@ -1,0 +1,747 @@
+#include <apps.h>
+#include "tongxin_demo.h"
+#include "cp_i.h"
+static int Bo_Te_Lv;
+static int Jie_Ko_Way;
+static int PC_38 = 2;
+static __s32 xml_Lamp_Sent(char * cha,int delay);
+static int Tong_Xin_ToInt(char cha);
+static __s32 Jie_Ko_Pin(int port,int num,int data) ;
+static void Lamp_Sent_Change_botelv(int botelv);
+static __s32 Lamp_Sent(unsigned char * packet,int len);
+
+/*=======> Lihan 20160127
+	485 收发控制Pin脚: 0 = Tx, 1 = Rx	
+ */
+static __hdle _stat_485;
+
+/* <======
+ */
+
+
+static int Tong_Xin_ToInt(char cha)
+	{
+		int cnt;
+		if(cha > 90){
+			cha = cha - 32;
+		}
+		cnt = 0;
+		switch(cha){
+			case '0':
+			case '1':
+			case '2':
+			case '3':
+			case '4':
+			case '5':
+			case '6':
+			case '7':
+			case '8':
+			case '9':
+				cnt = SLIB_atoi(&cha);
+				break;
+			case 'A':
+				cnt = 10;
+				break;
+			case 'B':
+				cnt = 11;
+				break;
+			case 'C':
+				cnt = 12;
+				break;
+			case 'D':
+				cnt = 13;
+				break;
+			case 'E':
+				cnt = 14;
+				break;
+			case 'F':
+				cnt = 15;
+				break;
+		}
+		return cnt;
+}
+
+static char Tong_Xin_ToChar(int cha)
+{
+	char cnt;
+	switch(cha){
+		case 0:
+			cnt = '0';
+			break;
+		case 1:
+			cnt = '1';
+			break;
+		case 2:
+			cnt = '2';
+			break;
+		case 3:
+			cnt = '3';
+			break;
+		case 4:
+			cnt = '4';
+			break;
+		case 5:
+			cnt = '5';
+			break;
+		case 6:
+			cnt = '6';
+			break;
+		case 7:
+			cnt = '7';
+			break;
+		case 8:
+			cnt = '8';
+			break;
+		case 9:
+			cnt = '9';
+			break;
+		case 10:
+			cnt = 'A';
+			break;
+		case 11:
+			cnt = 'B';
+			break;
+		case 12:
+			cnt = 'C';
+			break;
+		case 13:
+			cnt = 'D';
+			break;
+		case 14:
+			cnt = 'E';
+			break;
+		case 15:
+			cnt = 'F';
+			break;
+	}
+	return cnt;
+}
+static __s32 Jie_Ko_Pin(int port,int num,int data) 
+{
+	user_gpio_set_t gpio_set;
+	 __hdle hvolume_ctrl = NULL;
+
+	// gpio_set.name = "ea ctrl";
+	 gpio_set.port = port;
+	 gpio_set.port_num = num;
+	 gpio_set.mul_sel = 1;
+	 gpio_set.drv_level = 1;
+	 gpio_set.pull = 1;
+	 gpio_set.data = data;
+
+	 hvolume_ctrl = esPINS_PinGrpReq(&gpio_set, 1);
+	if (!hvolume_ctrl)
+	{
+		__wrn("request Power Off pin failed\n");
+		return EPDK_FAIL;
+	}
+
+	esPINS_WritePinData(hvolume_ctrl, data, NULL);
+	esPINS_PinGrpRel(hvolume_ctrl, 2);
+	return EPDK_OK;
+}
+
+static void Lamp_Sent_Change_botelv(int botelv)
+{
+	ES_FILE * uart;
+	//int bote;
+	uart = eLIBs_fopen("b:\\BUS\\UART1", "r+");
+	if (!uart) {
+		LogE("Open UART 1 failed");
+	}
+	eLIBs_fioctrl(uart,UART_CMD_SET_BAUDRATE, 0, (void *)botelv);
+	eLIBs_fclose(uart);
+}
+
+/* =======> Lihan 20160157
+     485 收发控制Pin脚，默认为接收状态，Pin脚输出高电平
+*/
+static __hdle gpio_485_reg(void)
+{
+	__hdle hvolume_ctrl = NULL;
+	user_gpio_set_t gpio_set;
+	
+	 // gpio_set.name = "ea ctrl";
+	gpio_set.port = 3;
+	gpio_set.port_num = 8;
+	gpio_set.mul_sel = 1;
+	gpio_set.drv_level = 1;
+	gpio_set.pull = 1;
+	gpio_set.data = 1;
+	hvolume_ctrl = esPINS_PinGrpReq(&gpio_set, 1);
+	if(hvolume_ctrl==0){
+		__msg("gpio reg error\n");
+		return  0;
+	}
+	return hvolume_ctrl;
+}
+
+static __s32 gpio_485_write(int data) 
+{
+	esPINS_WritePinData(_stat_485, data, NULL);
+}
+
+/* <=========
+ */
+
+static __s32 Lamp_Sent(unsigned char * packet,int len)
+{
+	ES_FILE * uart;
+	uart = eLIBs_fopen("b:\\BUS\\UART1", "r+");
+	if (!uart) {
+		LogE("Open UART 1 failed");
+		return EPDK_FAIL;
+	}
+	
+	gpio_485_write(0);     // 485 Tx
+	esKRNL_TimeDly(3);      // Delay
+	//log_mi("len = %d\n",len);
+	eLIBs_fwrite(packet, 1, len, uart);
+
+	esKRNL_TimeDly(3);     // Delay
+	gpio_485_write(1);   // 485 Rx
+	
+	eLIBs_fclose(uart);
+	return EPDK_OK;
+}
+
+/*************************
+		For HDL crc16
+ */
+static unsigned short crc_ccitt(unsigned char *data, int data_len)
+{
+	unsigned short crc_value = 0;
+	unsigned short crc16_table[] = {
+		0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7,
+		0x8108, 0x9129, 0xA14A, 0xB16B, 0xC18C, 0xD1AD, 0xE1CE, 0xF1EF,
+		0x1231, 0x0210, 0x3273, 0x2252, 0x52B5, 0x4294, 0x72F7, 0x62D6,
+		0x9339, 0x8318, 0xB37B, 0xA35A, 0xD3BD, 0xC39C, 0xF3FF, 0xE3DE,
+		0x2462, 0x3443, 0x0420, 0x1401, 0x64E6, 0x74C7, 0x44A4, 0x5485,
+		0xA56A, 0xB54B, 0x8528, 0x9509, 0xE5EE, 0xF5CF, 0xC5AC, 0xD58D,
+		0x3653, 0x2672, 0x1611, 0x0630, 0x76D7, 0x66F6, 0x5695, 0x46B4,
+		0xB75B, 0xA77A, 0x9719, 0x8738, 0xF7DF, 0xE7FE, 0xD79D, 0xC7BC,
+		0x48C4, 0x58E5, 0x6886, 0x78A7, 0x0840, 0x1861, 0x2802, 0x3823,
+		0xC9CC, 0xD9ED, 0xE98E, 0xF9AF, 0x8948, 0x9969, 0xA90A, 0xB92B,
+		0x5AF5, 0x4AD4, 0x7AB7, 0x6A96, 0x1A71, 0x0A50, 0x3A33, 0x2A12,
+		0xDBFD, 0xCBDC, 0xFBBF, 0xEB9E, 0x9B79, 0x8B58, 0xBB3B, 0xAB1A,
+		0x6CA6, 0x7C87, 0x4CE4, 0x5CC5, 0x2C22, 0x3C03, 0x0C60, 0x1C41,
+		0xEDAE, 0xFD8F, 0xCDEC, 0xDDCD, 0xAD2A, 0xBD0B, 0x8D68, 0x9D49,
+		0x7E97, 0x6EB6, 0x5ED5, 0x4EF4, 0x3E13, 0x2E32, 0x1E51, 0x0E70,
+		0xFF9F, 0xEFBE, 0xDFDD, 0xCFFC, 0xBF1B, 0xAF3A, 0x9F59, 0x8F78,
+		0x9188, 0x81A9, 0xB1CA, 0xA1EB, 0xD10C, 0xC12D, 0xF14E, 0xE16F,
+		0x1080, 0x00A1, 0x30C2, 0x20E3, 0x5004, 0x4025, 0x7046, 0x6067,
+		0x83B9, 0x9398, 0xA3FB, 0xB3DA, 0xC33D, 0xD31C, 0xE37F, 0xF35E,
+		0x02B1, 0x1290, 0x22F3, 0x32D2, 0x4235, 0x5214, 0x6277, 0x7256,
+		0xB5EA, 0xA5CB, 0x95A8, 0x8589, 0xF56E, 0xE54F, 0xD52C, 0xC50D,
+		0x34E2, 0x24C3, 0x14A0, 0x0481, 0x7466, 0x6447, 0x5424, 0x4405,
+		0xA7DB, 0xB7FA, 0x8799, 0x97B8, 0xE75F, 0xF77E, 0xC71D, 0xD73C,
+		0x26D3, 0x36F2, 0x0691, 0x16B0, 0x6657, 0x7676, 0x4615, 0x5634,
+		0xD94C, 0xC96D, 0xF90E, 0xE92F, 0x99C8, 0x89E9, 0xB98A, 0xA9AB,
+		0x5844, 0x4865, 0x7806, 0x6827, 0x18C0, 0x08E1, 0x3882, 0x28A3,
+		0xCB7D, 0xDB5C, 0xEB3F, 0xFB1E, 0x8BF9, 0x9BD8, 0xABBB, 0xBB9A,
+		0x4A75, 0x5A54, 0x6A37, 0x7A16, 0x0AF1, 0x1AD0, 0x2AB3, 0x3A92,
+		0xFD2E, 0xED0F, 0xDD6C, 0xCD4D, 0xBDAA, 0xAD8B, 0x9DE8, 0x8DC9,
+		0x7C26, 0x6C07, 0x5C64, 0x4C45, 0x3CA2, 0x2C83, 0x1CE0, 0x0CC1,
+		0xEF1F, 0xFF3E, 0xCF5D, 0xDF7C, 0xAF9B, 0xBFBA, 0x8FD9, 0x9FF8,
+		0x6E17, 0x7E36, 0x4E55, 0x5E74, 0x2E93, 0x3EB2, 0x0ED1, 0x1EF0
+		};
+
+	while(data_len-- > 0)
+		crc_value = crc16_table[(crc_value >> 8 ^ *data++) & 0xff] ^ (crc_value << 8);
+        
+	return crc_value;
+}
+/******************END****************/
+
+static __s32 xml_Lamp_Sent(char * cha,int delay)
+{
+	unsigned char * payload, *tmp;
+	int len;
+	int i,j;
+
+	unsigned short crc16_val = 0;
+	
+	len = (eLIBs_strlen(cha) + 1) / 3;
+	payload = esMEMS_Malloc(0, len);
+	tmp = payload+2;
+	//LogMI("cha = %s",cha);	
+	for(i = 0,j = 0; i < len; i++,j++){
+	  payload[i]= (Tong_Xin_ToInt(cha[j])<< 4) | (Tong_Xin_ToInt(cha[j + 1]));
+	  j = j + 2;
+	  //LogMI("payload[%d] = %d",i,payload[i]);	  
+	}
+
+	crc16_val = crc_ccitt(tmp, len - 4);
+	payload[len - 2] = (crc16_val >> 8) & 0xFF;
+	payload[len - 1] = crc16_val & 0xFF;
+	
+	Lamp_Sent(payload,len);
+	//LogMI("delay = %d",delay);	  
+	len = delay / 10;
+	if(delay != 0){
+		if(len == 0){
+			len = 1;
+		}
+	}
+	//LogMI("len = %d",len);	  
+	esKRNL_TimeDly(len);
+	if(PC_38 != 0){//拉低默认端口
+	   PC_38 = 0;
+	   Jie_Ko_Pin(3,8,0);//nd0		 0是发1是收 			  关闭发送
+    }
+	esMEMS_Mfree(0, payload);
+	return 1;
+}
+
+void XML_send_code(Test_handle * handler)
+{
+	Test_handle * desc;
+	desc = (Test_handle *)handler;
+	// 1
+	if(desc->key_code1){
+		if(SLIB_strcmp(desc->key_bus1,"RS232") == 0){
+		   if(Jie_Ko_Way != 232){
+			   Jie_Ko_Way = 232;
+			   //Jie_Ko_Pin(1,5,1);//红外 0是发1是收
+			   Jie_Ko_Pin(3,8,1);//nd0		 0是发1是收               关闭发送
+		   }
+		   //LogMI("key_bus = 232");	
+		}else if(SLIB_strcmp(desc->key_bus1,"RS485") == 0){
+		   if(Jie_Ko_Way != 485){
+		   	   Jie_Ko_Way = 485;
+			   //Jie_Ko_Pin(1,5,0);//红外 0是发1是收
+			   Jie_Ko_Pin(3,8,0);//nd0       0是发1是收             开启发送
+		   }
+		   //LogMI("key_bus = 485");	
+		}
+		if(SLIB_atoi(desc->key_baurate1) > 0){
+			if(Bo_Te_Lv != SLIB_atoi(desc->key_baurate1)){
+				Bo_Te_Lv = SLIB_atoi(desc->key_baurate1);
+				Lamp_Sent_Change_botelv(Bo_Te_Lv);//波特率
+			}
+		}
+	   xml_Lamp_Sent(desc->key_code1,SLIB_atoi(desc->key_delay1));//延时与数据
+	}
+}
+
+__s32 Button_Id_Bug(char * cha)
+{
+	unsigned char * payload;
+	int len;
+	int i,j;
+	len = (eLIBs_strlen(cha) + 1) / 3;
+	payload = esMEMS_Malloc(0, len);
+	//LogMI("cha = %s",cha);	
+	for(i = 0,j = 0;i < len;i++,j++){
+	  payload[i]= (Tong_Xin_ToInt(cha[j])<< 4) | (Tong_Xin_ToInt(cha[j + 1]));
+	  j = j + 2;
+	  //LogMI("payload[%d] = %d",i,payload[i]);   
+	}
+	//Lamp_Sent(payload,len);
+	esMEMS_Mfree(0, payload);
+	return 1;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+
+void send_button_code_2(char * cha,int delay,char * array_in,char * array_out)
+{
+   int char_len,in_len,out_len;//数据长度
+   int i,k;
+   int place;//状态控制位 0 初始1判断延时2延时判断结束
+   char * xml_Send_Date_Char;//待发送数据临时储存cha 变int单位
+   int ChuLi_ShuJu_Wei;//字符串的数据位数
+   char_len = eLIBs_strlen(cha); 
+   in_len = eLIBs_strlen(array_in);  
+   out_len = eLIBs_strlen(array_out);
+   i = place = k =0;
+   xml_Send_Date_Char = (char *)esMEMS_Malloc(0,(char_len + in_len + out_len - 7));// 9 = [in] + [out]
+   
+   for(ChuLi_ShuJu_Wei = 0,k = 0;k < (char_len + in_len + out_len - 7);ChuLi_ShuJu_Wei++){
+	  if(cha[ChuLi_ShuJu_Wei]=='[' && cha[ChuLi_ShuJu_Wei + 1]=='i'){
+		 place = 1;
+		 for(i = 0;i < in_len;i++){
+			 xml_Send_Date_Char[k] = array_in[i];
+			 //LogMI("xml_Send_Date_Char[%d] = %c",k,xml_Send_Date_Char[k]);
+			 k++;
+		 }
+	  }
+	  if(cha[ChuLi_ShuJu_Wei]==']'){
+		 place = 0;
+		 ChuLi_ShuJu_Wei++;
+	  }
+	  if(cha[ChuLi_ShuJu_Wei]=='[' && cha[ChuLi_ShuJu_Wei + 1]=='o'){
+		 place = 1;
+		 if(xml_Send_Date_Char[k - 1] != ','){
+		 	xml_Send_Date_Char[k] = ',';
+			k++;
+		 }
+		 for(i = 0;i < out_len;i++){
+			 xml_Send_Date_Char[k] = array_out[i];
+			//LogMI("xml_Send_Date_Char[%d] = %c",k,xml_Send_Date_Char[k]);
+			 k++;
+		 }
+	  }
+	  if(cha[ChuLi_ShuJu_Wei]==']'){
+		 place = 0;
+		 ChuLi_ShuJu_Wei++;
+	  }
+	  if(place == 0){
+		 xml_Send_Date_Char[k] = cha[ChuLi_ShuJu_Wei];
+		 //LogMI("xml_Send_Date_Char[%d] = %c",k,xml_Send_Date_Char[k]);
+		 k++;
+	  }
+   } 
+   LogMI("xml_Send_Date_Char = %s",xml_Send_Date_Char);
+   xml_Lamp_Sent(xml_Send_Date_Char,delay);
+   esMEMS_Mfree(0, xml_Send_Date_Char);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+
+void send_button_code_2_1(char * cha,int delay,char * array_in,char * array_out)
+{
+   int char_len,in_len,out_len;//数据长度
+   int i,k,code_number;
+   int place;//状态控制位 0 初始1判断延时2延时判断结束
+   char * xml_Send_Date_Char;//待发送数据临时储存cha 变int单位
+   int ChuLi_ShuJu_Wei;//字符串的数据位数
+   char_len = eLIBs_strlen(cha); 
+   in_len = eLIBs_strlen(array_in);  
+   out_len = eLIBs_strlen(array_out);
+   i = place = k =0;
+   code_number = char_len + in_len + out_len;
+   if(in_len == 0){
+   	 code_number = code_number - 4;
+	 //i++;
+   }else if(in_len > 0){
+	   code_number = code_number - 4;
+	   code_number++;
+   }
+   if(out_len == 0){
+	  code_number = code_number - 5;
+	 //i++;
+   }else if(out_len > 0){
+	   code_number = code_number - 5;
+	   code_number++;
+   }
+	// LogMI("array_in = %s",array_in);
+	// LogMI("array_out = %s",array_out);
+   xml_Send_Date_Char = (char *)esMEMS_Malloc(0,code_number + 1);// 9 = [in] + [out]
+   for(ChuLi_ShuJu_Wei = 0,k = 0;k < code_number;ChuLi_ShuJu_Wei++){
+      if(array_in){
+		  if(cha[ChuLi_ShuJu_Wei]=='[' && cha[ChuLi_ShuJu_Wei + 1]=='i'){
+			 place = 0;
+			 for(i = 0;i < in_len;i++){
+				 xml_Send_Date_Char[k] = array_in[i];
+				 //LogMI("xml_Send_Date_Char[%d] = %c",k,xml_Send_Date_Char[k]);
+				 k++;
+			 }
+		  }
+	  }
+	  if(array_out){
+		  if(cha[ChuLi_ShuJu_Wei]=='[' && cha[ChuLi_ShuJu_Wei + 1]=='o'){
+			 place = 0;
+			 if(xml_Send_Date_Char[k - 1] != ','){
+			 	if(k != 0){
+					xml_Send_Date_Char[k] = ',';
+					//LogMI("xml_Send_Date_Char[%d] = %c",k,xml_Send_Date_Char[k]);
+					k++;
+				}
+			 }
+			 for(i = 0;i < out_len;i++){
+				 xml_Send_Date_Char[k] = array_out[i];
+				 //LogMI("xml_Send_Date_Char[%d] = %c",k,xml_Send_Date_Char[k]);
+				 k++;
+			 }
+		  }
+	  }
+	  
+	  if(place == 0){
+			// LogMI("cha[%d] = %c",ChuLi_ShuJu_Wei,cha[ChuLi_ShuJu_Wei]);
+			 xml_Send_Date_Char[k] = cha[ChuLi_ShuJu_Wei];
+			// LogMI("xml_Send_Date_Char[%d] = %c",k,xml_Send_Date_Char[k]);
+		 if(cha[ChuLi_ShuJu_Wei] == '0' || cha[ChuLi_ShuJu_Wei] == '1' || cha[ChuLi_ShuJu_Wei] == '2' || cha[ChuLi_ShuJu_Wei] == '3'
+		 	 || cha[ChuLi_ShuJu_Wei] == '4' || cha[ChuLi_ShuJu_Wei] == '5' || cha[ChuLi_ShuJu_Wei] == '6' || cha[ChuLi_ShuJu_Wei] == '7'
+		 	 || cha[ChuLi_ShuJu_Wei] == '8' || cha[ChuLi_ShuJu_Wei] == '9'){
+			 k++;
+		 }else if(cha[ChuLi_ShuJu_Wei] == 'a' || cha[ChuLi_ShuJu_Wei] == 'b' || cha[ChuLi_ShuJu_Wei] == 'c'
+		  || cha[ChuLi_ShuJu_Wei] == 'd' || cha[ChuLi_ShuJu_Wei] == 'e' || cha[ChuLi_ShuJu_Wei] == 'f'){
+			 k++;
+		 }else if(cha[ChuLi_ShuJu_Wei] == 'A' || cha[ChuLi_ShuJu_Wei] == 'B' || cha[ChuLi_ShuJu_Wei] == 'C'
+		  || cha[ChuLi_ShuJu_Wei] == 'D' || cha[ChuLi_ShuJu_Wei] == 'E' || cha[ChuLi_ShuJu_Wei] == 'F'){
+			 k++;
+		 }else if(cha[ChuLi_ShuJu_Wei] == ','){
+		     if(k > 0){
+				 if(xml_Send_Date_Char[k - 1] != ','){
+					 k++;
+				 }
+			 }
+		 }else if(cha[ChuLi_ShuJu_Wei] == NULL){
+			 //LogMI("xml_Send_Date_Char[%d] = %c",k,xml_Send_Date_Char[k]);
+		     break;
+		 }
+	  }
+	  //LogMI("k = %d,ChuLi_ShuJu_Wei = %d",k,ChuLi_ShuJu_Wei);
+   } 
+   //LogMI("xml_Send_Date_Char[%d] = %c",k,xml_Send_Date_Char[k]);
+   //LogMI("cha[%d] = %c",ChuLi_ShuJu_Wei,cha[ChuLi_ShuJu_Wei]);
+   LogMI("xml_Send_Date_Char = %s",xml_Send_Date_Char);
+   xml_Lamp_Sent(xml_Send_Date_Char,delay);
+   esMEMS_Mfree(0, xml_Send_Date_Char);
+}
+
+void send_button_code_1(char * cha,int delay,int slider_value)
+{
+   int char_len,in_len;//数据长度
+   int i,k;
+   int place;//状态控制位 0 初始1判断延时2延时判断结束
+   char * xml_Send_Date_Char;//待发送数据临时储存cha 变int单位
+   unsigned char * xml_Send_Date_value;
+   int ChuLi_ShuJu_Wei;//字符串的数据位数
+  
+   char_len = eLIBs_strlen(cha) + 1; 
+   i = place = k =0;
+   if(slider_value > 255){
+	   xml_Send_Date_value = (unsigned char *)esMEMS_Malloc(0,5);
+	   xml_Send_Date_value[0] = Tong_Xin_ToChar(slider_value/256/16);
+	   xml_Send_Date_value[1] = Tong_Xin_ToChar(slider_value/256%16);
+	   xml_Send_Date_value[2] = ',';
+	   xml_Send_Date_value[3] = Tong_Xin_ToChar(slider_value%256/16);
+	   xml_Send_Date_value[4] = Tong_Xin_ToChar(slider_value%256%16);
+	   in_len = 5;
+   }else{
+	   xml_Send_Date_value = (unsigned char *)esMEMS_Malloc(0,2);
+	   xml_Send_Date_value[0] = Tong_Xin_ToChar(slider_value%256/16);
+	   xml_Send_Date_value[1] = Tong_Xin_ToChar(slider_value%256%16);
+	   in_len = 2;
+   }
+   xml_Send_Date_Char = (char *)esMEMS_Malloc(0,char_len + in_len);
+   for(ChuLi_ShuJu_Wei = 0,k = 0;ChuLi_ShuJu_Wei < char_len ;ChuLi_ShuJu_Wei++){
+	  if(cha[ChuLi_ShuJu_Wei]=='[' && cha[ChuLi_ShuJu_Wei + 1]=='v'){
+		 place = 1;
+		 for(i = 0;i < in_len;i++){
+			 xml_Send_Date_Char[k] = xml_Send_Date_value[i];
+			 //LogMI("xml_Send_Date_Char[%d] = %c",k,xml_Send_Date_Char[k]);
+			 k++;
+		 }
+	  }else if(cha[ChuLi_ShuJu_Wei]==']'){
+		 place = 0;
+		 ChuLi_ShuJu_Wei++;
+	  }
+	  if(place == 0){
+		 xml_Send_Date_Char[k] = cha[ChuLi_ShuJu_Wei];
+		 //LogMI("xml_Send_Date_Char[%d] = %c",k,xml_Send_Date_Char[k]);
+		 k++;
+	  }
+   } 
+   //LogMI("xml_Send_Date_Char = %s",xml_Send_Date_Char);
+   xml_Lamp_Sent(xml_Send_Date_Char,delay);
+   esMEMS_Mfree(0, xml_Send_Date_Char);
+   esMEMS_Mfree(0, xml_Send_Date_value);
+}
+static void send_button_code(char * baurate,char * datas,char * delay)
+{
+	if(SLIB_atoi(baurate) > 0){
+		if(Bo_Te_Lv != SLIB_atoi(baurate)){
+			Bo_Te_Lv = SLIB_atoi(baurate);
+			Lamp_Sent_Change_botelv(Bo_Te_Lv);//波特率
+		}
+	}
+	xml_Lamp_Sent(datas,SLIB_atoi(delay));//延时与数据
+}
+void Send_ButtonCode_Normal(char * port,char * baurate,char * datas,char * delay)
+{//端口， 波特率，数据，延时
+    char * duanko;
+	int len;
+	duanko = port;
+	if(datas){
+		if(SLIB_strcmp(duanko,"GPIO_1") == 0){
+			Jie_Ko_Pin(3,9,SLIB_atoi(baurate)); //pc 9
+			len = SLIB_atoi(delay) / 10;
+			if(SLIB_atoi(delay) != 0){
+				if(len == 0){
+					len = 1;
+				}
+				esKRNL_TimeDly(len);
+			}
+		}else if(SLIB_strcmp(duanko,"GPIO_2") == 0){
+			Jie_Ko_Pin(3,10,SLIB_atoi(baurate));//pc 10
+			len = SLIB_atoi(delay) / 10;
+			if(SLIB_atoi(delay) != 0){
+				if(len == 0){
+					len = 1;
+				}
+				esKRNL_TimeDly(len);
+			}
+		}else if(SLIB_strcmp(duanko,"GPIO_3") == 0){
+			Jie_Ko_Pin(3,14,SLIB_atoi(baurate));//pc 14
+			//Jie_Ko_Pin(1,5,SLIB_atoi(baurate));       //pa5
+			len = SLIB_atoi(delay) / 10;
+			if(SLIB_atoi(delay) != 0){
+				if(len == 0){
+					len = 1;
+				}
+				esKRNL_TimeDly(len);
+			}
+		}else if(SLIB_strcmp(duanko,"GPIO_4") == 0){
+			Jie_Ko_Pin(3,11,SLIB_atoi(baurate));//pc 11
+			len = SLIB_atoi(delay) / 10;
+			if(SLIB_atoi(delay) != 0){
+				if(len == 0){
+					len = 1;
+				}
+				esKRNL_TimeDly(len);
+			}
+		}else if(SLIB_strcmp(duanko,"RS232_1") == 0){
+			if(datas){
+			   if(Jie_Ko_Way != 232){
+				   Jie_Ko_Way = 232;
+				   //Jie_Ko_Pin(1,5,1);//红外 0是发1是收
+				   if(PC_38 != 1){
+					   PC_38 = 1;
+					   Jie_Ko_Pin(3,8,1);//nd0		 0是发1是收 			  关闭发送
+				   }
+			   }
+			   send_button_code(baurate,datas,delay);
+			}
+		}else if(SLIB_strcmp(duanko,"RS232_2") == 0){
+			if(datas){
+			   if(Jie_Ko_Way != 232){
+				   Jie_Ko_Way = 232;
+				   //Jie_Ko_Pin(1,5,1);//红外 0是发1是收
+				   if(PC_38 != 0){
+					   PC_38 = 0;
+					   Jie_Ko_Pin(3,8,0);//nd0		 0是发1是收 			  关闭发送
+				   }
+			   }
+			   send_button_code(baurate,datas,delay);
+			}
+		}else if((SLIB_strcmp(duanko,"RS485_1") == 0)||(SLIB_strcmp(duanko,"RS485_2") == 0)
+			            ||(SLIB_strcmp(duanko,"RS485_3") == 0)){
+			if(datas){
+			   if(Jie_Ko_Way != 485){
+				   Jie_Ko_Way = 485;
+				   //Jie_Ko_Pin(1,5,0);//红外 0是发1是收
+				   if(PC_38 != 0){
+					   PC_38 = 0;
+					   Jie_Ko_Pin(3,8,0);//nd0		 0是发1是收 			  关闭发送
+				   }
+			   }
+			   send_button_code(baurate,datas,delay);
+		    }
+		}
+	}
+}
+void Send_ButtonCode_Matrix(char * port,char * baurate,char * datas,char * delay,char * array_in,char * array_out)
+{//端口， 波特，率 数据， 延时
+	char * duanko;
+	char * botelv;
+	duanko = port;
+	botelv = baurate;
+	if(datas){
+		if(SLIB_strcmp(duanko,"RS232_1") == 0){
+		   if(Jie_Ko_Way != 232){
+			   Jie_Ko_Way = 232;
+			   //Jie_Ko_Pin(1,5,1);//红外 0是发1是收
+			   if(PC_38 != 1){
+				   PC_38 = 1;
+				   Jie_Ko_Pin(3,8,1);//nd0		 0是发1是收 			  关闭发送
+			   }
+		   }
+		   //LogMI("key_bus = 232");	
+		}else if(SLIB_strcmp(duanko,"RS232_2") == 0){
+		   if(Jie_Ko_Way != 232){
+			   Jie_Ko_Way = 232;
+			   //Jie_Ko_Pin(1,5,1);//红外 0是发1是收
+			   if(PC_38 != 0){
+				   PC_38 = 0;
+				   Jie_Ko_Pin(3,8,0);//nd0		 0是发1是收 			  关闭发送
+			   }
+		   }
+		   //LogMI("key_bus = 232");	
+		}else if((SLIB_strcmp(duanko,"RS485_1") == 0)||(SLIB_strcmp(duanko,"RS485_2") == 0)
+		            ||(SLIB_strcmp(duanko,"RS485_3") == 0)){
+		   if(Jie_Ko_Way != 485){
+			   Jie_Ko_Way = 485;
+			   //Jie_Ko_Pin(1,5,0);//红外 0是发1是收
+			   if(PC_38 != 0){
+				   PC_38 = 0;
+				   Jie_Ko_Pin(3,8,0);//nd0		 0是发1是收 			  关闭发送
+			   }
+		   }
+		   //LogMI("key_bus = 485");	
+		}
+		if(SLIB_atoi(botelv) > 0){
+			if(Bo_Te_Lv != SLIB_atoi(botelv)){
+				Bo_Te_Lv = SLIB_atoi(botelv);
+				Lamp_Sent_Change_botelv(Bo_Te_Lv);//波特率
+			}
+		}
+	   if(array_in){
+	       send_button_code_2_1(datas, SLIB_atoi(delay), array_in, array_out);//有输入发码
+	   }else{
+		   send_button_code_2_1(datas, SLIB_atoi(delay), array_in, array_out);//无输入发码
+	   }
+	}
+}
+void Send_ButtonCode_Slider(char * port,char * baurate,char * datas,char * delay,int slider_value)
+{//端口， 波特，率 数据， 延时
+	char * duanko;
+	char * botelv;
+	duanko = port;
+	botelv = baurate;
+	if(datas){
+		if(SLIB_strcmp(duanko,"RS232_1") == 0){
+		   if(Jie_Ko_Way != 232){
+			   Jie_Ko_Way = 232;
+			   //Jie_Ko_Pin(1,5,1);//红外 0是发1是收
+			   if(PC_38 != 1){
+				   PC_38 = 1;
+				   Jie_Ko_Pin(3,8,1);//nd0		 0是发1是收 			  关闭发送
+			   }
+		   }
+		   //LogMI("key_bus = 232");	
+		}else if(SLIB_strcmp(duanko,"RS232_2") == 0){
+		   if(Jie_Ko_Way != 232){
+			   Jie_Ko_Way = 232;
+			   //Jie_Ko_Pin(1,5,1);//红外 0是发1是收
+			   if(PC_38 != 0){
+				   PC_38 = 0;
+				   Jie_Ko_Pin(3,8,0);//nd0		 0是发1是收 			  关闭发送
+			   }
+		   }
+		   //LogMI("key_bus = 232");	
+		}else if((SLIB_strcmp(duanko,"RS485_1") == 0)||(SLIB_strcmp(duanko,"RS485_2") == 0)
+		            ||(SLIB_strcmp(duanko,"RS485_3") == 0)){
+		   if(Jie_Ko_Way != 485){
+			   Jie_Ko_Way = 485;
+			   //Jie_Ko_Pin(1,5,0);//红外 0是发1是收
+			   if(PC_38 != 0){
+				   PC_38 = 0;
+				   Jie_Ko_Pin(3,8,0);//nd0		 0是发1是收 			  关闭发送
+			   }
+		   }
+		   //LogMI("key_bus = 485");	
+		}
+		if(SLIB_atoi(botelv) > 0){
+			if(Bo_Te_Lv != SLIB_atoi(botelv)){
+				Bo_Te_Lv = SLIB_atoi(botelv);
+				Lamp_Sent_Change_botelv(Bo_Te_Lv);//波特率
+			}
+		}
+	   send_button_code_1(datas,SLIB_atoi(delay),slider_value);//延时与数据
+	}
+}
+
+/* ======> Lihan 20160127
+	485默认为接收状态
+  */
+void Uart_485_init(void)
+{
+	_stat_485 =  gpio_485_reg();
+}
+/* <=============
+*/
+
+
