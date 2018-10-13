@@ -64,6 +64,7 @@ typedef struct
     __u32 	language;	    //语言
 	__u32 	style;			//主题风格
 	__u32 	backlight;		//背光亮度
+	__u32	standby_backlight;
 	__u32 	backlightoff;	//
 	__u32 	poweroff;
 	__u32	keytone;		//按键音

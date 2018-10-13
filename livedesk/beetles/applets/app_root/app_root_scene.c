@@ -22,13 +22,13 @@
 #include "app_root_init.h"
 #include "home/app_home.h"
 #include "explorer/explorer.h"
-#include "movie/app_movie.h"
+//#include "movie/app_movie.h"
 #include "music/music.h"
 #include "photo/app_photo.h"
 #include "setting/app_setting.h"
-#include "fm/app_fm.h"
-#include "ebook/app_ebook.h"
-#include "record/app_record.h"
+//#include "fm/app_fm.h"
+//#include "ebook/app_ebook.h"
+//#include "record/app_record.h"
 
 typedef struct tag_root_ctrl
 {
@@ -42,6 +42,7 @@ typedef struct tag_root_ctrl
 	H_WIN	h_app_setting;		
 	H_WIN	h_app_calendar;	
     H_WIN	h_app_record;	
+    H_WIN   h_app_screensaver;
 	root_para_t *root_para;
 }root_ctrl_t;
 
@@ -338,7 +339,7 @@ static void __app_root_change_to_default_bg(void)
         __msg("dsk_reg_get_para_by_app fail...\n");
     }
 }
-
+#if 0
 static __s32 app_root_command_proc(__gui_msg_t *msg)
 {
 	root_para_t *root_para;
@@ -1133,7 +1134,7 @@ static __s32 app_root_command_proc(__gui_msg_t *msg)
 
 	return EPDK_OK;
 }
-
+#endif
 static __s32 __app_root_broadcast_msg(__gui_msg_t *msg)
 {
     H_WIN root, child;
@@ -1409,7 +1410,7 @@ __s32 app_root_win_proc(__gui_msg_t *msg)
 		return EPDK_OK;
 		case GUI_MSG_COMMAND:
  		{           
- 			app_root_command_proc(msg);
+ 			//app_root_command_proc(msg);
             
 			return EPDK_OK;
  		}					
@@ -1575,8 +1576,87 @@ __s32 app_root_win_proc(__gui_msg_t *msg)
 		case GUI_MSG_TOUCH:			
 		{
 			__msg("app_root_win_proc GUI_MSG_TOUCH\n");
-			break;
+			//break;
+			msg->h_deswin = GUI_WinGetFocusChild(msg->h_deswin);
+			return GUI_SendMessage(msg);	
 		}		
+		case DSK_MSG_ENTER_SCREENSAVER:
+		{	
+			root_para_t *root_para;
+			root_ctrl_t   *root_ctrl;
+			reg_system_para_t *system_para;
+
+			root_ctrl = (root_ctrl_t *)GUI_WinGetAddData(msg->h_deswin);
+			root_para = root_ctrl->root_para;
+           	system_para = (reg_system_para_t *)dsk_reg_get_para_by_app(REG_APP_SYSTEM);
+        	if (root_ctrl->h_app_home)
+        	//	GUI_ManWinDelete(root_ctrl->h_app_remote);
+			{
+			    __gui_msg_t msg;
+
+				//return;
+				eLIBs_memset(&msg, 0, sizeof(__gui_msg_t));
+				msg.id 			= DSK_MSG_ENTER_SCREENSAVER;
+				msg.h_srcwin 	= NULL;
+				msg.h_deswin	= root_ctrl->h_app_home;
+				msg.dwAddData1	= (__u32)0;
+				msg.dwAddData2	= (__u32)0;
+				
+				GUI_SendMessage(&msg);	
+			}
+
+           	//dsk_display_set_lcd_bright(system_para->standby_backlight);
+           	
+        	root_ctrl->h_app_screensaver = app_clock_create(root_para);
+            GUI_WinSetFocusChild(root_ctrl->h_app_screensaver);
+
+			//dsk_display_set_lcd_bright(system_para->standby_backlight);
+			break;
+		}	
+		case DSK_MSG_CLOSE_SCREENSAVER:
+		{
+			root_para_t *root_para;
+			root_ctrl_t   *root_ctrl;
+			reg_system_para_t *system_para;
+			
+			if (root_ctrl->h_app_screensaver == NULL)
+				break;
+			
+			root_ctrl = (root_ctrl_t *)GUI_WinGetAddData(msg->h_deswin);
+			root_para = root_ctrl->root_para;
+			system_para = (reg_system_para_t *)dsk_reg_get_para_by_app(REG_APP_SYSTEM);
+			if (root_ctrl->h_app_screensaver)
+        		GUI_ManWinDelete(root_ctrl->h_app_screensaver);
+        	root_ctrl->h_app_screensaver = NULL;
+
+        	if (root_ctrl->h_app_home)
+        	{
+			    __gui_msg_t msg;
+
+				//return;
+				eLIBs_memset(&msg, 0, sizeof(__gui_msg_t));
+				msg.id 			= DSK_MSG_CLOSE_SCREENSAVER;
+				msg.h_srcwin 	= NULL;
+				msg.h_deswin	= root_ctrl->h_app_home;
+				msg.dwAddData1	= (__u32)0;
+				msg.dwAddData2	= (__u32)0;
+				
+				GUI_SendMessage(&msg);	
+			}
+        	/*
+			if (check_remote_setting() == EPDK_OK)
+            {
+            	root_ctrl->h_app_remote = app_remote_create(root_para);
+           		GUI_WinSetFocusChild(root_ctrl->h_app_remote);	
+            }
+            else
+            {
+	            root_ctrl->h_app_setting = app_setting_create(root_para);
+	            GUI_WinSetFocusChild(root_ctrl->h_app_setting);	
+        	}*/
+        	//dsk_display_set_lcd_bright(system_para->backlight);
+			break;
+		}
 		case DSK_MSG_FS_PART_PLUGOUT:
  		{
  			root_ctrl_t   *root_ctrl;

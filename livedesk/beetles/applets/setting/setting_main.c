@@ -3,19 +3,6 @@
 #include "button_ex.h"
 #include "app_setting.h"
 
-typedef enum {
-	SETTING_MAIN_ITEM_ID_RETURN,
-	SETTING_MAIN_ITEM_ID_LOCK,
-	SETTING_MAIN_ITEM_ID_RESET_PASSWD,
-	SETTING_MAIN_ITEM_ID_TIMER,
-	SETTING_MAIN_ITEM_ID_SCREEN_SAVER,
-	SETTING_MAIN_ITEM_ID_SEASON,
-	SETTING_MAIN_ITEM_ID_BASIC,
-	SETTING_MAIN_ITEM_ID_NETWORK,
-	SETTING_MAIN_ITEM_ID_UPGRADE,
-	SETTING_MAIN_ITEM_ID_ALL,
-}setting_main_item_id_t;
-
 typedef struct {
 	RECT rect_bg;
 	RECT rect_pic;
@@ -234,39 +221,15 @@ static __s32 setting_main_proc(__gui_msg_t* msg)
 		case GUI_MSG_COMMAND:
 		{
 			//eLIBs_printf("@@@@ setting_main item_id is %d, msgcode is %d\n", LOSWORD(msg->dwAddData1), HISWORD(msg->dwAddData1));
-			switch(LOSWORD(msg->dwAddData1))
-			{
-	#if 1					
-				case SETTING_MAIN_ITEM_ID_RETURN:
-					if(HISWORD(msg->dwAddData1) == BN_CLICKED) {
-						#if 0
-						__gui_notify_msg_t		notify_msg;
-						
-						notify_msg.hWnd 	= msg->h_deswin;
-						notify_msg.id		= GUI_WinGetItemId(msg->h_deswin);
-						notify_msg.msgcode	= ITEM_MSG_CODE_RETURN;
-						notify_msg.dwAddData = (__u32)&setting_main_para->date;
-						notify_msg.dwReserved = (__u32)&setting_main_para->time;
-						GUI_NotifyParent(&notify_msg);
-						#endif
-					}
-					break;
-					
-				case SETTING_MAIN_ITEM_ID_BASIC:
-					if(HISWORD(msg->dwAddData1) == BN_CLICKED) {
-						__gui_notify_msg_t		notify_msg;
-						
-						notify_msg.hWnd 	= msg->h_deswin;
-						notify_msg.id		= GUI_WinGetItemId(msg->h_deswin);
-						notify_msg.msgcode	= ITEM_MSG_CLICKED;
-						notify_msg.dwAddData = SETTING_WIN_ID_BASIC;
-						notify_msg.dwReserved = 0;
-						GUI_NotifyParent(&notify_msg);
-					}
-					break;
-	#endif
-				default:
-					break;
+			if(HISWORD(msg->dwAddData1) == BN_CLICKED) {
+				__gui_notify_msg_t		notify_msg;
+				
+				notify_msg.hWnd 	= msg->h_deswin;
+				notify_msg.id		= GUI_WinGetItemId(msg->h_deswin);
+				notify_msg.msgcode	= ITEM_MSG_CLICKED;
+				notify_msg.dwAddData = LOSWORD(msg->dwAddData1);
+				notify_msg.dwReserved = 0;
+				GUI_NotifyParent(&notify_msg);
 			}
 			return EPDK_OK;
 		}

@@ -57,7 +57,7 @@ static __s32 __reg_paramter_init(reg_app_para_t* para)
 	para->system_para.volume=20;
 	para->system_para.language=EPDK_LANGUAGE_ENM_CHINESES;//简体中文
 	para->system_para.style=0;
-	para->system_para.backlight=10;
+	para->system_para.backlight=0;
 	para->system_para.backlightoff=0;//不自动关屏
 	para->system_para.poweroff=0;//不自动关机
 	para->system_para.keytone=1;//按键音是否打开

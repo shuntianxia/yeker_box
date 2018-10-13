@@ -28,6 +28,9 @@ typedef struct init_ctl_t
 	__s32 					 closescn_timeout;	/* 自动关屏时间 	*/	
 	__bool					 closescn_gate_on;		/* 是否禁止自动关屏 */	
 	__s32					 close_scn_time_id;		/* 自动关屏timer id */
+	__s32 					 screen_saver_timeout;
+	__bool 					 screen_saver_on;
+	__s32 					 screen_saver_id;
 	
 	/* 低电查询 */
 	__s32 					 low_power_check_timeout;

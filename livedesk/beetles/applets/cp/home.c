@@ -5,6 +5,7 @@
 #include "settime.h"
 #include "tongxin_demo.h"
 #include "..\..\shell\bmp_parser\bmp.h"
+#include "beetles_app.h"
 #ifdef THIS_DEBUG
 #undef THIS_DEBUG
 #endif
@@ -13,29 +14,15 @@
 #define THIS_DEBUG
 #endif
 
-static int homeSysTimeInit(void)
-{
-    __time_t tm;
-    __date_t date;
-
-    tm.hour = 23;
-    tm.minute = 59;
-    tm.second = 30;
-    date.year = 2013;
-    date.month = 1;
-    date.day = 20;
-    esTIME_SetTime(&tm);
-    esTIME_SetDate(&date);
-    return 0;
-}
-
 typedef struct {
     EWin_InheritInfo_ForHeader ewii;
     void * inertia;
     H_WIN hFocusWin; // Current child window
     H_WIN StandyWindow;
 } HomeDescriptor;
+
 static __bool standy_en = 0;
+
 static HomeDescriptor * homeWndInit(__gui_msg_t * msg)
 {
     HomeDescriptor * hdp;
@@ -70,9 +57,6 @@ static HomeDescriptor * homeWndInit(__gui_msg_t * msg)
 
     // Set the volume
     dsk_volume_set(100);
-    homeSysTimeInit();
-    GUI_SetScnDir(GUI_SCNDIR_ROTATE180);
-    dsk_display_set_lcd_bright(LION_BRIGHT_LEVEL1);
 
     hdp->ewii.magic = EWIN_INFO_MAGIC;
     hdp->ewii.desktop = msg->h_deswin;
@@ -93,7 +77,6 @@ static HomeDescriptor * homeWndInit(__gui_msg_t * msg)
 		hdp->ewii.langid = SLIB_atoi(langid);
 		//LogMI("hdp->ewii.langid %d",hdp->ewii.langid);
         hdp->hFocusWin = SCR_ScrollingHostBuilder(&hdp->ewii, ScrollingCreate_V0001, node);
-		esDEV_Plugin("\\drv\\touchpanel.drv", 0, 0, 1);
     } else {
         LogE("No window node in XML file");
         return NULL;
@@ -326,15 +309,23 @@ static __s32 homeWndProc(__gui_msg_t * msg)
     return 0;
 }
 
-H_WIN HomeWndCreate(H_WIN parent, gg_handler domUIConfig)
+H_WIN HomeWndCreate(root_para_t *para)
 {
     H_WIN hWin;
     __gui_manwincreate_para_t createInfo;
+	gg_handler domUIConfig;
+
+	user_langres_init("d:\\res\\lang.bin");
+    user_theme_init("d:\\res\\theme.bin");
+    domUIConfig = GG_DOMCreate(CP_DEFAULT_UI_CONFIG);
+    if (domUIConfig == NULL) {
+    	return NULL;
+    }
 
     eLIBs_memset(&createInfo, 0, sizeof(__gui_manwincreate_para_t));
 
     createInfo.name             = "HomeWindow";
-    createInfo.hParent          = parent;
+    createInfo.hParent          = para->h_parent;
     createInfo.hHosting         = NULL;
     createInfo.ManWindowProc    = (__pGUI_WIN_CB)esKRNL_GetCallBack((__pCBK_t)homeWndProc);
     createInfo.attr             = domUIConfig;

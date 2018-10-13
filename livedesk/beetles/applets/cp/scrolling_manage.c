@@ -570,7 +570,7 @@ static __s32 scrollingButtonProc(__gui_msg_t * msg)
 		} else {//非滑动键
 		   	if(SLIB_strcmp(wndDpt->xml_button_controltype,"textview") == 0){//文本框
 			     GUI_ClearRect(wndDpt->scrolling.wndRect.x,wndDpt->scrolling.wndRect.y,wndDpt->scrolling.ewii.wndRect.width,wndDpt->scrolling.ewii.wndRect.height);
-				 dsk_langres_get_menu_text(wndDpt->textview_chstr,str,100);
+				 user_langres_get_menu_text(wndDpt->textview_chstr,str,100);
 				 //GUI_DispStringAt(str,wndDpt->word_x + wndDpt->scrolling.wndRect.x,wndDpt->word_y + wndDpt->scrolling.wndRect.y);
 				 GUI_DispStringAt(str,wndDpt->scrolling.ewii.wndRect.x + wndDpt->scrolling.wndRect.x,
 				          wndDpt->scrolling.ewii.wndRect.y + wndDpt->scrolling.wndRect.y);
@@ -582,7 +582,7 @@ static __s32 scrollingButtonProc(__gui_msg_t * msg)
 									  wndDpt->scrolling.ewii.wndRect.y + wndDpt->scrolling.wndRect.y);
 					  
 				  	 if(wndDpt->word_id_on){
-						 dsk_langres_get_menu_text(wndDpt->word_id_on,str,100);
+						 user_langres_get_menu_text(wndDpt->word_id_on,str,100);
 						 GUI_DispStringAt(str,wndDpt->word_x + wndDpt->scrolling.wndRect.x,wndDpt->word_y + wndDpt->scrolling.wndRect.y);
 					 }
 					 user_theme_close(wndDpt->buttonMove);
@@ -593,7 +593,7 @@ static __s32 scrollingButtonProc(__gui_msg_t * msg)
 									  wndDpt->scrolling.ewii.wndRect.y + wndDpt->scrolling.wndRect.y);
 					 
 					 if(wndDpt->word_id_off){
-						 dsk_langres_get_menu_text(wndDpt->word_id_off,str,100);
+						 user_langres_get_menu_text(wndDpt->word_id_off,str,100);
 						 GUI_DispStringAt(str,wndDpt->word_x + wndDpt->scrolling.wndRect.x,wndDpt->word_y + wndDpt->scrolling.wndRect.y);
 				     }
 					 user_theme_close(wndDpt->buttonMove);

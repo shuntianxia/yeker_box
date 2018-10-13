@@ -120,7 +120,7 @@
     del mbr.bin
     del rootfs.iso
     del udisk.iso
-    ::del melis100.fex
+    del melis100.fex
     del ..\eFex\sys_config.bin
     del sunxi_mbr.fex
     del u-boot.fex

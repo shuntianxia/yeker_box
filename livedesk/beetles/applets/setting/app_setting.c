@@ -22,6 +22,7 @@
 #include "setting_general.h"
 #include "setting_power.h"
 #include "setting_tips.h"
+#include "setting_main.h"
 /***********************************************************************************************************
 	½¨Á¢Í¼²ã
 ************************************************************************************************************/
@@ -199,10 +200,40 @@ static __s32 app_setting_proc(__gui_msg_t *msg)
 					{
 						case ITEM_MSG_CLICKED:
 						{
-							if(setting_ctrl->h_setting_main != NULL) {
-								GUI_ManWinDelete(setting_ctrl->h_setting_main);
-								setting_ctrl->h_setting_main = setting_language_create(msg->h_deswin, SETTING_WIN_ID_LANGUAGE);
+							switch(msg->dwAddData2)
+							{
+								case SETTING_MAIN_ITEM_ID_LOCK:
+									if(setting_ctrl->h_setting_main != NULL) {
+										GUI_ManWinDelete(setting_ctrl->h_setting_main);
+										setting_ctrl->h_setting_main = setting_lock_create(msg->h_deswin, SETTING_WIN_ID_LOCK);
+									}
+									break;
+
+								case SETTING_MAIN_ITEM_ID_BASIC:
+									if(setting_ctrl->h_setting_main != NULL) {
+										GUI_ManWinDelete(setting_ctrl->h_setting_main);
+										setting_ctrl->h_setting_main = setting_language_create(msg->h_deswin, SETTING_WIN_ID_LANGUAGE);
+									}
+									break;
+									
+								case SETTING_MAIN_ITEM_ID_SEASON:
+									if(setting_ctrl->h_setting_main != NULL) {
+										GUI_ManWinDelete(setting_ctrl->h_setting_main);
+										setting_ctrl->h_setting_main = setting_season_create(msg->h_deswin, SETTING_WIN_ID_SEASON);
+									}
+									break;
+									
+								case SETTING_MAIN_ITEM_ID_UPGRADE:
+									if(setting_ctrl->h_setting_main != NULL) {
+										GUI_ManWinDelete(setting_ctrl->h_setting_main);
+										setting_ctrl->h_setting_main = setting_upgrade_create(msg->h_deswin, SETTING_WIN_ID_UPGRADE);
+									}
+									break;
+
+								default:
+									break;
 							}
+						
 						}
 							break;
 						case ID_OP_RIGHT:

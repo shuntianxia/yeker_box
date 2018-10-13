@@ -287,9 +287,9 @@ static __s32 scrollingHostWndProc(__gui_msg_t * msg)
 			lang_i = GG_DOMGetBrotherElementByTagName(page, "langid");
 			lang = SLIB_atoi(GG_DOMGetNodeValue(lang_i));
 			if(lang){
-				dsk_langres_set_type(EPDK_LANGUAGE_ENM_ENGLISH);
+				user_langres_set_type(EPDK_LANGUAGE_ENM_ENGLISH);
 			}else{
-				dsk_langres_set_type(EPDK_LANGUAGE_ENM_CHINESES);
+				user_langres_set_type(EPDK_LANGUAGE_ENM_CHINESES);
 			}
 			//__msg("lanid=%d\n",lang);
 			esDEV_Plugin("\\drv\\uart.drv", 2, (void *)9600, 0);

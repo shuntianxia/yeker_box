@@ -117,7 +117,7 @@ static void __exec_startx(void)
             eLIBs_fclose(p_disp);        
         }        
     }
-
+	esKRNL_TimeDly(300);
     __close_logo();
 	//esKSRV_close_logo();
     

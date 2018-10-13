@@ -29,6 +29,7 @@
 #define CLOSE_SCN_TIME_ID		1001
 #define LOW_POWER_CHECK_TIME_ID	1002
 #define CURSOR_TIME_ID			1003
+#define SCREENSAVER_TIME_ID		1004
 
 static __bool g_b_enable_standby = 1;
 
@@ -393,6 +394,7 @@ static __s32 init_close_screen(__gui_msg_t *msg)
                 
                 __here__;
                 init_open_screen(msg);
+                init_close_screensaver(msg);
 
                 //退出之后重新加载host driver
                 if(init_ctr->usb_host_is_working_before_standy)
@@ -561,6 +563,70 @@ static __s32 init_set_close_scn(__gui_msg_t *msg)
 	}
 		
 	return EPDK_OK;
+}
+
+static __s32 init_set_screensaver(__gui_msg_t *msg)
+{
+	__init_ctl_t * init_ctr = (__init_ctl_t *)GUI_WinGetAttr(msg->h_deswin);
+	if (init_ctr->screen_saver_on == 0)
+	{
+		__here__;
+		init_ctr->screen_saver_on = 1;
+		init_restart_close_scn(msg);
+
+		{
+			__gui_msg_t msgex;
+			msgex.id 			= DSK_MSG_ENTER_SCREENSAVER;
+	    	msgex.h_srcwin 		= NULL;
+	    	msgex.h_deswin 		= msg->h_deswin;
+	    	msgex.dwAddData1 	= 0;
+	    	msgex.dwAddData2 	= 0;
+	    	msgex.dwReserved 	= 0;
+	    	msgex.p_arg	   		= NULL;
+	    	
+	    	activity_notify_top(&msgex);  
+		}
+	}
+}
+
+
+static __s32 init_close_screensaver(__gui_msg_t *msg)
+{
+	__bool exist;
+	__init_ctl_t * init_ctr = (__init_ctl_t *)GUI_WinGetAttr(msg->h_deswin);
+	
+
+	if (init_ctr->screen_saver_on == 1)
+	{
+		__here__;
+		init_ctr->screen_saver_on = 0;
+		init_restart_close_scn(msg);
+
+		{
+			__gui_msg_t msgex;
+			msgex.id 			= DSK_MSG_CLOSE_SCREENSAVER;
+	    	msgex.h_srcwin 		= NULL;
+	    	msgex.h_deswin 		= msg->h_deswin;
+	    	msgex.dwAddData1 	= 0;
+	    	msgex.dwAddData2 	= 0;
+	    	msgex.dwReserved 	= 0;
+	    	msgex.p_arg	   		= NULL;
+	    	
+	    	activity_notify_top(&msgex);  
+		}
+	}
+
+	{
+		reg_system_para_t *para;
+		para = (reg_system_para_t *)dsk_reg_get_para_by_app(REG_APP_SYSTEM);
+		dsk_display_set_lcd_bright(para->backlight);
+	}
+
+	exist = GUI_IsTimerInstalled(msg->h_deswin, init_ctr->screen_saver_id);
+	if (exist == EPDK_TRUE )
+	{
+		GUI_ResetTimer(msg->h_deswin, init_ctr->screen_saver_id, init_ctr->screen_saver_timeout, NULL);
+	}
 }
 
 /**
@@ -1041,10 +1107,12 @@ static __s32 init_mainwin_cb(__gui_msg_t *msg)
 			init_ctr->cursor_time_id		   	= CURSOR_TIME_ID;			
 			init_ctr->close_scn_time_id	   		= CLOSE_SCN_TIME_ID;
 			init_ctr->auto_off_time_id			= AUTO_OFF_TIME_ID;
+			init_ctr->screen_saver_id            = SCREENSAVER_TIME_ID;
 			/* 低电查询定时器 */
 			init_ctr->low_power_check_timeout	= 100;							// 1s									
 			/* cursor 隐藏定时器 */
 			init_ctr->cursor_timeout   			= 500;							// 5s
+			init_ctr->screen_saver_timeout		= 1500;	
 			
 			/* 创建 timer */				
 			GUI_SetTimer(msg->h_deswin, init_ctr->low_power_check_time_id, init_ctr->low_power_check_timeout, NULL);			
@@ -1055,6 +1123,7 @@ static __s32 init_mainwin_cb(__gui_msg_t *msg)
 			{
 				GUI_SetTimer(msg->h_deswin, init_ctr->close_scn_time_id, init_ctr->closescn_timeout, NULL);
 			}
+			GUI_SetTimer(msg->h_deswin, init_ctr->screen_saver_id, init_ctr->screen_saver_timeout, NULL);
 			/* 创建信号量 */
 			init_ctr->state_sem = esKRNL_SemCreate(1);
 			init_ctr->closescn_gate_on 	= EPDK_TRUE;
@@ -1094,7 +1163,10 @@ static __s32 init_mainwin_cb(__gui_msg_t *msg)
 
             if( GUI_IsTimerInstalled(msg->h_deswin, init_ctr->auto_off_time_id))		
 				GUI_KillTimer(msg->h_deswin, init_ctr->auto_off_time_id);
-			
+
+			if( GUI_IsTimerInstalled(msg->h_deswin, init_ctr->screen_saver_id))		
+				GUI_KillTimer(msg->h_deswin, init_ctr->screen_saver_id);
+				
 			esKRNL_SemDel(init_ctr->state_sem, 0, &err);
 											
 			//删除后台线程
@@ -1130,6 +1202,10 @@ static __s32 init_mainwin_cb(__gui_msg_t *msg)
 			if( msg->dwAddData1 == init_ctr->cursor_time_id )//光标存在时间
 			{
 				GUI_CursorHide();	
+			}
+			else if( msg->dwAddData1 == init_ctr->screen_saver_id )
+			{
+				init_set_screensaver(msg);
 			}
 			else if( msg->dwAddData1 == init_ctr->low_power_check_time_id )//低电检查
 			{				
@@ -1246,6 +1322,10 @@ static __s32 init_mainwin_cb(__gui_msg_t *msg)
 			{
 				GUI_ResetTimer(msg->h_deswin, init_ctr->close_scn_time_id, init_ctr->closescn_timeout, NULL);
 			}
+			if (msg->dwAddData1 == GUI_MSG_TOUCH_UP || msg->dwAddData1 == GUI_MSG_TOUCH_OVERUP)
+			{
+				init_close_screensaver(msg);
+			}
             //重新设置关机定时器
 			exist = GUI_IsTimerInstalled(msg->h_deswin, init_ctr->auto_off_time_id);
 			if( exist == EPDK_TRUE )
@@ -1267,8 +1347,51 @@ static __s32 init_mainwin_cb(__gui_msg_t *msg)
 				GUI_ResetTimer(msg->h_deswin, init_ctr->cursor_time_id, init_ctr->cursor_timeout, NULL);
 			}
 			
-			return GUI_ManWinDefaultProc(msg);			
+			//return GUI_ManWinDefaultProc(msg);			
+			return activity_notify_top(msg);
 		}		
+
+		case DSK_MSG_RESET_SCREENSAVER:
+		{
+			init_close_screensaver(msg);
+			break;
+		}
+		case DSK_MSG_ENABLE_SCREENSAVER:
+		{
+			__init_ctl_t * init_ctr = (__init_ctl_t *)GUI_WinGetAttr(msg->h_deswin);
+			
+			if(!GUI_IsTimerInstalled(msg->h_deswin, init_ctr->screen_saver_id))	 {
+				GUI_SetTimer(msg->h_deswin, init_ctr->screen_saver_id, init_ctr->screen_saver_timeout, NULL);
+			}
+			break;
+		}
+		case DSK_MSG_DISABLE_SCREENSAVER:
+		{
+			__init_ctl_t * init_ctr = (__init_ctl_t *)GUI_WinGetAttr(msg->h_deswin);
+			
+			if (init_ctr->screen_saver_on == 1)
+			{
+				init_ctr->screen_saver_on = 0;
+				//init_restart_close_scn(msg);
+			
+				{
+					__gui_msg_t msgex;
+					msgex.id			= DSK_MSG_CLOSE_SCREENSAVER;
+					msgex.h_srcwin		= NULL;
+					msgex.h_deswin		= msg->h_deswin;
+					msgex.dwAddData1	= 0;
+					msgex.dwAddData2	= 0;
+					msgex.dwReserved	= 0;
+					msgex.p_arg 		= NULL;
+					
+					activity_notify_top(&msgex);  
+				}
+			}
+
+			if(GUI_IsTimerInstalled(msg->h_deswin, init_ctr->screen_saver_id))		
+				GUI_KillTimer(msg->h_deswin, init_ctr->screen_saver_id);
+			break;
+		}
 
 		case HEADBAR_CMD_SET_FORMAT:
 		{

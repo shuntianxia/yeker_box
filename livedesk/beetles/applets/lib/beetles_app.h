@@ -57,6 +57,7 @@ extern GUI_FONT    *SWFFont;
 #define APP_RECORD	    "app_record"
 #define APP_DV	    	"app_dv"
 #define APP_CLOCK		"app_clock"
+#define APP_SCROLL		"app_scroll"
 
 #define APP_HOME_ID			0x1001
 #define APP_EXPLORER_ID		0x2001
@@ -70,6 +71,7 @@ extern GUI_FONT    *SWFFont;
 #define APP_RECORD_ID		0x9002
 #define APP_DV_ID			0x9101
 #define APP_CLOCK_ID		0x9003
+#define APP_SCROLL_ID		0x9004
 
 typedef enum
 {    
