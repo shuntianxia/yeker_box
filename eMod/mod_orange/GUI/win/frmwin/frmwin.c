@@ -315,12 +315,6 @@ H_WIN GUI_FrmWinCreate(__gui_framewincreate_para_t *create_info)
         GUI_WinAddNewHostedWin(framewin->pHosting,GUI_WinH2P(hWnd));
     }
 
-    /*draw framewin*/
-    if(framewin->base_win.dwStyle & WS_VISIBLE)
-    {
-        GUI_InvalidateRect ((H_WIN)hWnd, NULL, ORANGE_TRUE);
-    }
-
 	/*send message to win to create private data*/
     {
         __gui_msg_t   new_msg;
@@ -339,6 +333,12 @@ H_WIN GUI_FrmWinCreate(__gui_framewincreate_para_t *create_info)
             goto err;
         }
     }   
+
+    /*draw framewin*/
+    if(framewin->base_win.dwStyle & WS_VISIBLE)
+    {
+        GUI_InvalidateRect ((H_WIN)hWnd, NULL, ORANGE_TRUE);
+    }
 	
     return hWnd;
 
