@@ -4,25 +4,26 @@
 
 #include <apps.h>
 #include <gadget.h>
-#include <user_msgs.h>
+//#include <user_msgs.h>
 #include "ext_window.h"
 #include "user_theme.h"
 
 #define HOME_GESTURE_TIMER      5
-#define SUSPEND_TIMER           6
+//#define SUSPEND_TIMER           6
 
-#define SYS_UPDATA_TIMER		7
+//#define SYS_UPDATA_TIMER		7
 
 enum {
     HOME_SUBWIN_SCROLLING = 0,
-	HOME_SUBWIN_SETTING_TIME ,
-    HOME_SUBWIN_UPDATE
+	//HOME_SUBWIN_SETTING_TIME ,
+    //HOME_SUBWIN_UPDATE
 };
 
 #define inline                  __inline
 #define CP_SYS_FONT_SIZE        20
 #define CP_SYS_FONT_PATH        "d:\\res\\fonts\\font16.sft"
 #define CP_DEFAULT_UI_CONFIG    "d:\\res\\ui_utf_8.xml"
+#define CP_USER_UI_CONFIG		"e:\\res\\ui_utf_8.xml"
 
 /* For Test........Lhan */
 //#define MW_PROJ_DEBUG

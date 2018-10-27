@@ -230,6 +230,10 @@ static __s32 app_setting_proc(__gui_msg_t *msg)
 									}
 									break;
 
+								case SETTING_MAIN_ITEM_ID_RETURN:
+									main_cmd2parent(msg->h_deswin, SWITCH_TO_OTHER_APP, SETTING_SW_TO_SCROLL, msg->dwAddData2);
+									break;
+
 								default:
 									break;
 							}

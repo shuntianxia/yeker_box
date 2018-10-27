@@ -18,9 +18,6 @@
 
 #include "beetles_app.h"
 #include "app_home.h"
-#include "main_menu.h"
-#include "sub_menu.h"
-#include "home_uipara.h"
 #include "msgbox.h"
 #include "app_home_i.h"
 
@@ -28,18 +25,12 @@ typedef struct tag_home_para
 {
 	H_WIN	h_app_main;
 	H_WIN 	h_mmenu;
-	H_WIN 	h_submenu;
 	H_WIN	h_calendar;
 	H_WIN	h_msgbox;
-
 	H_WIN	lyr_mmenu;
-	H_WIN	lyr_smenu;
 
-	__s32	focus_id;
-	__s32   first_item;
 	GUI_FONT *main_font;
 
-    __s32   focus_smenu_item;
 	void		*core;
 	__u32	root_type; 
 }home_para_t;
@@ -204,71 +195,6 @@ static void check_disk(home_para_t *home_para)
     
 }
 
-static void app_sub_menu_create(home_para_t *home_para)
-{
-	smenu_para_t smenu_para;
-	RECT	rect;
-	home_uipara_t * home_ui_para;
-
-    home_ui_para = home_get_ui_para(GUI_GetScnDir());
-    if(!home_ui_para)
-    {
-        __err("home_ui_para is null...\n");
-        return ;
-    }
-		
-	rect.x = (home_para->focus_id-home_para->first_item)*home_ui_para->item_width;
-	rect.y = home_ui_para->lyr_sub_item.y;
-	rect.width = home_ui_para->lyr_sub_item.w;
-	rect.height = home_ui_para->lyr_sub_item.h;
-
-	if (rect.x+rect.width >= home_ui_para->lyr_main_menu.w)
-	{
-		rect.x = home_ui_para->lyr_main_menu.w-rect.width;
-	}
-	
-	home_para->lyr_smenu = home_8bpp_layer_create(&rect, 1);   
-	
-	smenu_para.layer = home_para->lyr_smenu;
-	smenu_para.sub_menu_id = home_para->focus_id;
-	smenu_para.smenu_font = home_para->main_font;
-	smenu_para.root_type = home_para->root_type;
-    smenu_para.focus_item = home_para->focus_smenu_item;
-    __msg("home_para->focus_smenu_item=%d\n", home_para->focus_smenu_item);
-	
-	home_para->h_submenu = sub_menu_win_create(home_para->h_app_main, &smenu_para);	
-    __msg("home_para->h_submenu=%x\n", home_para->h_submenu);
-}
-
-static void app_main_menu_create(home_para_t *home_para)
-{
-	RECT	rect;
-    mmenu_para_t mmenu_para;
-    home_uipara_t * home_ui_para;
-
-    home_ui_para = home_get_ui_para(GUI_GetScnDir());
-    if(!home_ui_para)
-    {
-        __err("home_ui_para is null...\n");
-        return ;
-    }
-	
-	rect.x = home_ui_para->lyr_main_menu.x;
-	rect.y = home_ui_para->lyr_main_menu.y;
-	rect.width = home_ui_para->lyr_main_menu.w;
-	rect.height = home_ui_para->lyr_main_menu.h;
-
-	home_para->lyr_mmenu = home_8bpp_layer_create(&rect, 1);
-
-	mmenu_para.mmenu_font = home_para->main_font;
-	mmenu_para.focus_id = home_para->focus_id;
-	mmenu_para.layer = home_para->lyr_mmenu;
-	home_para->h_mmenu = main_menu_win_create(home_para->h_app_main, &mmenu_para);
-    __msg("home_para->h_mmenu=%x\n", home_para->h_mmenu);
-	
-	GUI_WinSetFocusChild(home_para->h_mmenu);
-}
-
 static __s32 app_home_proc(__gui_msg_t *msg)
 {
     __msg("app_home_proc msg->id=%d, msg->h_deswin=%x, msg->dwAddData1=%d, msg->dwAddData2=%d\n"
@@ -289,49 +215,24 @@ static __s32 app_home_proc(__gui_msg_t *msg)
 			eLIBs_memset((void *)home_para, 0, sizeof(home_para_t));
 			home_para->main_font = root_para->font;
 			home_para->h_app_main = msg->h_deswin;
-			home_para->focus_id = 2;			// 		
-			home_para->first_item = 0;
 		
-			com_set_palette_by_id(ID_HOME_PAL_BMP);
-
             //background
             gscene_bgd_set_state(BGD_STATUS_SHOW);           
             
 			//主菜单
-			app_main_menu_create(home_para);
+			//app_main_menu_create(home_para);
 
 			//建立一个子菜单
-			check_disk(home_para);
-			app_sub_menu_create(home_para);
+			//check_disk(home_para);
             
-			GUI_LyrWinSetSta(home_para->lyr_mmenu, GUI_LYRWIN_STA_ON);
-			GUI_LyrWinSetSta(home_para->lyr_smenu, GUI_LYRWIN_STA_ON);
+			//GUI_LyrWinSetSta(home_para->lyr_mmenu, GUI_LYRWIN_STA_ON);
 
             gscene_hbar_set_state(HBAR_ST_SHOW);
 
             gscene_bgd_set_bottom();
-            GUI_WinSetFocusChild(home_para->h_mmenu);
+            //GUI_WinSetFocusChild(home_para->h_mmenu);
 			GUI_WinSetAddData(msg->h_deswin, (__u32)home_para);                                 
-            __here__;
-
-            //test volume
-            if(1){
-                reg_system_para_t* para;
-                __s32 vol;
-
-                vol = dsk_volume_get();
-                __msg("dsk_volume_get=%d\n", vol);
-
-                para = dsk_reg_get_para_by_app(REG_APP_SYSTEM);
-                if(para)
-                {
-                    __msg("para->volume=%d\n", para->volume);
-                }
-                else
-                {
-                    __msg("para is null...\n");
-                }
-            }           
+            __here__;         
 		}
 		return EPDK_OK;
 	case GUI_MSG_CLOSE:
@@ -343,11 +244,9 @@ static __s32 app_home_proc(__gui_msg_t *msg)
 
 			home_para = (home_para_t *)GUI_WinGetAddData(msg->h_deswin);
 			
-			GUI_LyrWinDelete(home_para->lyr_mmenu);
-			GUI_LyrWinDelete(home_para->lyr_smenu);
+			//GUI_LyrWinDelete(home_para->lyr_mmenu);
 
-			home_para->lyr_mmenu = 0;
-			home_para->lyr_smenu = 0;
+			//home_para->lyr_mmenu = 0;
             esMEMS_Bfree(home_para, sizeof(home_para_t));
 		}
 		return EPDK_OK;
@@ -358,45 +257,6 @@ static __s32 app_home_proc(__gui_msg_t *msg)
 		break;
 	case DSK_MSG_FS_PART_PLUGIN:
 	case DSK_MSG_FS_PART_PLUGOUT:
-		{					
-			home_para_t *home_para;
-			__s32 root_type;
-
-            __msg("app_home_proc DSK_MSG_FS_PART_PLUGIN/OUT\n");
-
-			home_para = (home_para_t *)GUI_WinGetAddData(msg->h_deswin);		
-
-			root_type = home_para->root_type;
-            __msg("home_para->root_type=%d\n", home_para->root_type);
-			check_disk(home_para);
-            __msg("home_para->root_type=%d\n", home_para->root_type);
-            __here__;
-            if (GUI_LYRWIN_STA_ON != GUI_LyrWinGetSta(home_para->lyr_mmenu))
-				return EPDK_OK;
-            __here__;
-			if (1/*home_para->root_type != root_type*/)
-			{
-                __here__;
-				if (home_para->focus_id == ID_HOME_MOVIE || home_para->focus_id == ID_HOME_PHOTO ||
-					home_para->focus_id == ID_HOME_MUSIC || home_para->focus_id == ID_HOME_EBOOK
-					|| home_para->focus_id == ID_HOME_RECORD)
-				{
-                    //先挡住子菜单，解决子菜单切换时闪的问题。
-                    //GUI_LyrWinSetTop(home_para->lyr_mmenu);//112357
-                    //gscene_hbar_set_state(HBAR_ST_SHOW);//112357
-                    
-					if (home_para->lyr_smenu)
-					{
-						GUI_LyrWinDelete(home_para->lyr_smenu);
-					}
-					
-					app_sub_menu_create(home_para);
-					GUI_LyrWinSetSta(home_para->lyr_smenu, GUI_LYRWIN_STA_ON);
-                    GUI_LyrWinSetTop(home_para->lyr_smenu);
-				}
-			}
-			
-		}
 		return EPDK_OK;
 	case DSK_APP_RESTORE:
 		{
@@ -404,12 +264,9 @@ static __s32 app_home_proc(__gui_msg_t *msg)
 
 			home_para = (home_para_t *)GUI_WinGetAddData(msg->h_deswin);
 
-            com_set_palette_by_id(ID_HOME_PAL_BMP);
-
             __app_home_change_to_home_bg();
                        
-			GUI_LyrWinSetSta(home_para->lyr_mmenu, GUI_LYRWIN_STA_ON);
-			GUI_LyrWinSetSta(home_para->lyr_smenu, GUI_LYRWIN_STA_ON);	
+			//GUI_LyrWinSetSta(home_para->lyr_mmenu, GUI_LYRWIN_STA_ON);
             gscene_hbar_set_state(HBAR_ST_SHOW);
             gscene_bgd_set_bottom();
             gscene_hbar_set_state(HBAR_ST_SHOW);
@@ -423,196 +280,6 @@ static __s32 app_home_proc(__gui_msg_t *msg)
 		}
 		return EPDK_OK;
 	case GUI_MSG_COMMAND:
-		{
-			home_para_t *home_para;
-
-			home_para = (home_para_t *)GUI_WinGetAddData(msg->h_deswin);
-			
-			switch(LOWORD(msg->dwAddData1))
-			{
-			case MAIN_MENU_ID:
-			{
-				switch(HIWORD(msg->dwAddData1))
-				{
-					case ID_SWITCH_ITEM:
-					{	
-                        //先挡住子菜单，解决子菜单切换时闪的问题。
-                        //GUI_LyrWinSetTop(home_para->lyr_mmenu);//112357
-                        //gscene_hbar_set_state(HBAR_ST_SHOW);//112357
-                        
-						if (home_para->lyr_smenu)
-						{
-							GUI_LyrWinDelete(home_para->lyr_smenu);
-						}
-                        
-						home_para->focus_id = msg->dwAddData2;
-						home_para->first_item = msg->dwReserved;
-						app_sub_menu_create(home_para);
-						GUI_LyrWinSetSta(home_para->lyr_smenu, GUI_LYRWIN_STA_ON);
-                        GUI_LyrWinSetTop(home_para->lyr_smenu);
-                        
-                        
-					}
-					break;
-					case ID_OP_SUB_UP:
-					{
-						__gui_msg_t mymsg;
-						mymsg.h_deswin = home_para->h_submenu;
-						mymsg.h_srcwin = NULL;
-						mymsg.id = MSG_SUB_OP_UP;
-						GUI_SendMessage(&mymsg);
-					}
-					break;
-					case ID_OP_SUB_DOWN:
-					{
-						__gui_msg_t mymsg;
-						mymsg.h_deswin = home_para->h_submenu;
-						mymsg.h_srcwin = NULL;
-						mymsg.id = MSG_SUB_OP_DOWN;
-						GUI_SendMessage(&mymsg);
-					}
-					break;	
-					case ID_OP_SUB_ENTER:
-					{
-						__gui_msg_t mymsg;
-						mymsg.h_deswin = home_para->h_submenu;
-						mymsg.h_srcwin = NULL;
-						mymsg.id = MSG_SUB_OP_ENTER;
-						GUI_SendMessage(&mymsg);
-					}
-					break;
-					default:
-					break;
-				}
-			}
-			break;
-			case SUB_MENU_ID:
-			{
-				if (HIWORD(msg->dwAddData1) == SMENU_APP_SWITCH)
-				{
-                    home_para->focus_smenu_item = msg->dwAddData2;
-                    __msg("msg->dwAddData2=%d\n", msg->dwAddData2);
-					__here__;
-					
-					//GUI_LyrWinSetSta(home_para->lyr_smenu, GUI_LYRWIN_STA_SUSPEND);
-					__here__;
-					switch (home_para->focus_id)
-					{						
-						case ID_HOME_FM:						
-						{   							
-							GUI_LyrWinSetSta(home_para->lyr_smenu, GUI_LYRWIN_STA_SUSPEND);
-							GUI_LyrWinSetSta(home_para->lyr_mmenu, GUI_LYRWIN_STA_SUSPEND);
-                            main_menu_res_uninit(home_para->h_mmenu);
-                            sub_menu_uninit_res(home_para->h_submenu);
-//                            GUI_LyrWinSetSta(home_para->lyr_total_bg, GUI_LYRWIN_STA_SUSPEND);
-							main_cmd2parent(msg->h_deswin, SWITCH_TO_OTHER_APP, home_para->focus_id, msg->dwAddData2);
-						}
-						break;
-						case ID_HOME_MOVIE:
-						case ID_HOME_PHOTO:
-						case ID_HOME_MUSIC:
-						case ID_HOME_EBOOK:
-                        case ID_HOME_RECORD:
-						{                                         
-							__here__;
-                            //if(ID_HOME_RECORD == home_para->focus_id)
-                            //{
-                            //    __msg("*************record not finish yet********\n");
-                            //    break;
-                            //}
-                            
-							if (home_para->root_type != 0)
-							{
-                                __s32 index;                                
-
-                                index = msg->dwAddData2;
-                                GUI_LyrWinSetSta(home_para->lyr_smenu, GUI_LYRWIN_STA_SUSPEND);
-								GUI_LyrWinSetSta(home_para->lyr_mmenu, GUI_LYRWIN_STA_SUSPEND);
-                                main_menu_res_uninit(home_para->h_mmenu);
-                                sub_menu_uninit_res(home_para->h_submenu);
-//                                GUI_LyrWinSetSta(home_para->lyr_total_bg, GUI_LYRWIN_STA_SUSPEND);
-								if ((home_para->root_type&0xff)//USB
-                                    &&(home_para->root_type&0xff00))//SD
-								{
-                                    if(0 == index)
-                                    {
-                                        main_cmd2parent(msg->h_deswin, SWITCH_TO_OTHER_APP
-                                        , home_para->focus_id, RAT_USB);
-                                    }
-                                    else if(1 == index)
-                                    {
-                                        main_cmd2parent(msg->h_deswin, SWITCH_TO_OTHER_APP
-                                        , home_para->focus_id, RAT_TF);
-                                    }									
-                                    else
-                                    {
-                                        __err("wrong focus sub menu item\n");
-                                    }
-								}
-								else if (home_para->root_type&0xff)//USB
-								{
-									 main_cmd2parent(msg->h_deswin, SWITCH_TO_OTHER_APP
-                                        , home_para->focus_id, RAT_USB);
-								}
-                                else if (home_para->root_type&0xff00)//TF
-								{
-									 main_cmd2parent(msg->h_deswin, SWITCH_TO_OTHER_APP
-                                        , home_para->focus_id, RAT_TF);
-								}
-                                else
-                                {
-                                    __err("wrong root type..\n");
-                                }
-							}
-							__here__;
-							break;
-						}
-						case ID_HOME_OTHERS:
-						{
-                            __msg("***********ID_HOME_OTHERS************\n");   
-#if BEETLES_RTC_EXIST
-                            if(3 == msg->dwAddData2)
-                            {
-                                if(0 == home_para->root_type)
-                                {
-                                    __msg("*************no disk insert, not load file manager************\n");
-                                    break;
-                                }
-                            }
-#else
-                            if(2 == msg->dwAddData2)
-                            {
-                                if(0 == home_para->root_type)
-                                {
-                                    __msg("*************no disk insert, not load file manager************\n");
-                                    break;
-                                }
-                            }
-
-#endif
-                            GUI_LyrWinSetSta(home_para->lyr_smenu, GUI_LYRWIN_STA_SUSPEND);
-							GUI_LyrWinSetSta(home_para->lyr_mmenu, GUI_LYRWIN_STA_SUSPEND);
-							//GUI_LyrWinSetSta(home_para->lyr_total_bg, GUI_LYRWIN_STA_SUSPEND);
-							main_menu_res_uninit(home_para->h_mmenu);
-                            sub_menu_uninit_res(home_para->h_submenu);
-							main_cmd2parent(msg->h_deswin, SWITCH_TO_OTHER_APP, home_para->focus_id, msg->dwAddData2);
-							break;
-						}
-					}
-				}
-			}
-			break;
-			case MSGBOX_ID:
-			{
-				if (HIWORD(msg->dwAddData1) == CMD_MSGBOX_CLOSE)
-				{
-					
-				}
-			}
-			default:
-				break;
-			}
-		}
 		return EPDK_OK;
 	}
 	

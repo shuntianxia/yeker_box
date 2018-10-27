@@ -22,26 +22,19 @@
 #include "app_root_init.h"
 #include "home/app_home.h"
 #include "explorer/explorer.h"
-//#include "movie/app_movie.h"
 #include "music/music.h"
 #include "photo/app_photo.h"
 #include "setting/app_setting.h"
-//#include "fm/app_fm.h"
-//#include "ebook/app_ebook.h"
-//#include "record/app_record.h"
 
 typedef struct tag_root_ctrl
 {
 	H_WIN	h_app_home;		
+	H_WIN	h_app_scroll;
 	H_WIN	h_app_explorer;
-	H_WIN	h_app_fm;	
-	H_WIN	h_app_movie;
 	H_WIN	h_app_music;
 	H_WIN	h_app_photo;
-	H_WIN	h_app_ebook;
 	H_WIN	h_app_setting;		
 	H_WIN	h_app_calendar;	
-    H_WIN	h_app_record;	
     H_WIN   h_app_screensaver;
 	root_para_t *root_para;
 }root_ctrl_t;
@@ -207,6 +200,36 @@ static void __app_home_restore(__gui_msg_t* msg)
 	}
 }
 
+static void __app_scroll_restore(__gui_msg_t* msg)
+{
+    root_ctrl_t   *root_ctrl;
+    
+    root_ctrl = (root_ctrl_t *)GUI_WinGetAddData(msg->h_deswin);
+	if (root_ctrl->h_app_scroll)
+	{
+		__gui_msg_t mymsg;
+		
+		mymsg.h_deswin = root_ctrl->h_app_scroll;
+		mymsg.id = DSK_APP_RESTORE;
+		mymsg.dwAddData1 =0;
+		mymsg.dwAddData2 = 0;
+		GUI_SendNotifyMessage(&mymsg);
+						
+		mymsg.h_deswin = root_ctrl->h_app_scroll;
+		mymsg.id = DSK_MSG_FS_PART_PLUGOUT;
+		mymsg.dwAddData1 = msg->dwAddData1;
+		mymsg.dwAddData2 = msg->dwAddData2;
+		GUI_SendNotifyMessage(&mymsg);
+
+		__app_set_focus_child(root_ctrl->h_app_scroll, 0);
+	}
+	else
+	{
+		root_ctrl->h_app_scroll = app_scroll_create(root_ctrl->root_para);
+		__app_set_focus_child(root_ctrl->h_app_scroll, 0);
+	}
+}
+
 static __s32 __app_root_is_bg_music_exist(__gui_msg_t *msg, H_WIN* hMusic)
 {
     H_WIN root, child;
@@ -339,7 +362,49 @@ static void __app_root_change_to_default_bg(void)
         __msg("dsk_reg_get_para_by_app fail...\n");
     }
 }
-#if 0
+
+void g_enable_screensaver(void)
+{
+    __gui_msg_t msg;
+
+	eLIBs_memset(&msg, 0, sizeof(__gui_msg_t));
+	msg.id 			= DSK_MSG_ENABLE_SCREENSAVER;
+	msg.h_srcwin 	= NULL;
+	msg.h_deswin	= GUI_WinGetHandFromName("init");
+	msg.dwAddData1	= (__u32)0;
+	msg.dwAddData2	= (__u32)0;
+	
+	GUI_SendMessage(&msg);	
+}
+
+void g_disable_screensaver(void)
+{
+    __gui_msg_t msg;
+
+	eLIBs_memset(&msg, 0, sizeof(__gui_msg_t));
+	msg.id 			= DSK_MSG_DISABLE_SCREENSAVER;
+	msg.h_srcwin 	= NULL;
+	msg.h_deswin	= GUI_WinGetHandFromName("init");
+	msg.dwAddData1	= (__u32)0;
+	msg.dwAddData2	= (__u32)0;
+	
+	GUI_SendMessage(&msg);	
+}
+
+void g_reset_screensaver(void)
+{
+    __gui_msg_t msg;
+
+	eLIBs_memset(&msg, 0, sizeof(__gui_msg_t));
+	msg.id 			= DSK_MSG_RESET_SCREENSAVER;
+	msg.h_srcwin 	= NULL;
+	msg.h_deswin	= GUI_WinGetHandFromName("init");
+	msg.dwAddData1	= (__u32)0;
+	msg.dwAddData2	= (__u32)0;
+	
+	GUI_SendMessage(&msg);	
+}
+
 static __s32 app_root_command_proc(__gui_msg_t *msg)
 {
 	root_para_t *root_para;
@@ -361,59 +426,6 @@ static __s32 app_root_command_proc(__gui_msg_t *msg)
 				{
 					switch(msg->dwAddData2)
 					{						
-						case ID_HOME_FM:
-						{                            
-                            gscene_hbar_set_state(HBAR_ST_HIDE);
-                            __app_root_change_to_default_bg();
-                            
-                            //删除后台音乐
-                            __app_root_delete_bg_music(msg);
-                            
-							__msg("**********enter fm**********\n");							
-							root_ctrl->root_para->h_parent= GUI_WinGetParent(root_ctrl->h_app_home);
-							root_ctrl->h_app_fm=  app_fm_create(root_para);
-							GUI_WinSetFocusChild(root_ctrl->h_app_fm);
-                            break;                          
-						}
-						break;
-						case ID_HOME_MOVIE:
-						{   
-                            gscene_hbar_set_state(HBAR_ST_HIDE);
-                            __app_root_change_to_default_bg();
-                            
-							__msg("**********enter movie explorer**********\n");							                           
-
-							__msg("root type=%d\n", msg->dwReserved);
-                            root_para->root_type = msg->dwReserved;//RAT_TF;
-                            root_para->explr_root = msg->dwReserved;
-                            root_para->data = ID_EXPLORER_MOVIE;
-                            root_ctrl->root_para->h_parent= GUI_WinGetParent(root_ctrl->h_app_home);
-                            root_ctrl->h_app_explorer =  app_explorer_create(root_para);
-                            __msg("root_ctrl->h_app_explorer = %x\n", root_ctrl->h_app_explorer);
-                            GUI_WinSetFocusChild(root_ctrl->h_app_explorer);
-							#if EPDK_AUTO_PLAY_MOVIE_ENABLE		
-							{
-								__gui_msg_t new_msg ;
-								eLIBs_printf("send enter key down message to explorer win\n");
-								new_msg.h_deswin = root_ctrl->h_app_explorer;
-								new_msg.id = GUI_MSG_KEY;
-								new_msg.dwAddData1 = GUI_MSG_KEY_ENTER;
-								new_msg.dwAddData2 = KEY_DOWN_ACTION;
-								GUI_SendAsyncMessage(&new_msg);
-								esKRNL_TimeDly(20);
-
-								eLIBs_printf("send enter key up message to explorer win\n");
-								new_msg.h_deswin = root_ctrl->h_app_explorer;
-								new_msg.id = GUI_MSG_KEY;
-								new_msg.dwAddData1 = GUI_MSG_KEY_ENTER;
-								new_msg.dwAddData2 = KEY_UP_ACTION;
-								GUI_SendAsyncMessage(&new_msg);
-							}
-							#endif
-
-                            break;							
-						}	
-						break;
 						case ID_HOME_PHOTO:
 						{               
                             gscene_hbar_set_state(HBAR_ST_HIDE);
@@ -478,35 +490,6 @@ static __s32 app_root_command_proc(__gui_msg_t *msg)
 							
 						}
 						break;
-						case ID_HOME_EBOOK:
-						{                 
-                            gscene_hbar_set_state(HBAR_ST_HIDE);
-                            __app_root_change_to_default_bg();
-                            
-							root_para->root_type = msg->dwReserved;
-							root_para->explr_root = msg->dwReserved;
-							root_para->data = ID_EXPLORER_EBOOK;
-							root_ctrl->root_para->h_parent= GUI_WinGetParent(root_ctrl->h_app_home);
-							root_ctrl->h_app_explorer=  app_explorer_create(root_para);
-							GUI_WinSetFocusChild(root_ctrl->h_app_explorer);
-						}
-						break;
-                        case ID_HOME_RECORD:
-                        {
-                            gscene_hbar_set_state(HBAR_ST_HIDE);
-                            __app_root_change_to_default_bg();
-
-                            //删除后台音乐
-                            __app_root_delete_bg_music(msg);
-
-                            __msg("**********ID_HOME_RECORD**********\n");	
-                            root_ctrl->root_para->root_type = msg->dwReserved;//RAT_USB或者RAT_TF
-                            root_ctrl->root_para->record_opt = 0;//正常录音
-							root_ctrl->root_para->h_parent= GUI_WinGetParent(root_ctrl->h_app_home);
-							root_ctrl->h_app_record=  app_record_create(root_para);
-							GUI_WinSetFocusChild(root_ctrl->h_app_record);
-                            break;
-                        }
 						case ID_HOME_OTHERS:
 						{                                                                          
                             gscene_hbar_set_state(HBAR_ST_HIDE);
@@ -608,6 +591,41 @@ static __s32 app_root_command_proc(__gui_msg_t *msg)
 			}
 		}
 		break;
+		case APP_SCROLL_ID:
+		{
+			switch (HIWORD(msg->dwAddData1))
+			{
+				case SWITCH_TO_OTHER_APP:
+				{
+					switch(msg->dwAddData2)
+					{						
+						case SCROLL_SW_TO_SETTING:
+						{																		   
+							gscene_hbar_set_state(HBAR_ST_HIDE);
+							g_disable_screensaver();
+							//删除后台音乐
+							//__app_root_delete_bg_music(msg);
+							
+							__msg("**********enter other apps**********\n");
+							__app_root_change_to_default_bg();
+							
+							__msg("**********enter setting**********\n");	
+							//root_ctrl->root_para->h_parent= GUI_WinGetParent(root_ctrl->h_app_home);
+							root_ctrl->h_app_setting=  app_setting_create(root_para);
+							GUI_WinSetFocusChild(root_ctrl->h_app_setting);
+							break;
+						}
+						
+						default:
+							break;
+					}
+				}
+					break;
+				default:
+					break;
+			}
+		}
+		break;
 		case APP_EXPLORER_ID:
 		{
 			switch(HIWORD(msg->dwAddData1))
@@ -626,20 +644,6 @@ static __s32 app_root_command_proc(__gui_msg_t *msg)
                             __here__;
 
                             __app_home_restore(msg);
-						}
-						break;
-					case EXPLR_SW_TO_MOVIE:
-						{                            
-                            //删除后台音乐
-                            __app_root_delete_bg_music(msg);
-                            
-							__msg("**********explorer to movie**********\n");
-							
-							//root_para->root_type = msg->dwReserved;
-							root_para->data = 0;
-							root_para->root_type = root_para->explr_root  ;
-							root_ctrl->h_app_movie = app_movie_create(root_para);
-							GUI_WinSetFocusChild(root_ctrl->h_app_movie);							
 						}
 						break;
 					case EXPLR_SW_TO_PHOTO:
@@ -708,23 +712,6 @@ static __s32 app_root_command_proc(__gui_msg_t *msg)
 								
 							}
 							break ;
-					case EXPLR_SW_TO_EBOOK:
-						{                            
-                            //删除后台音乐
-                            //__app_root_delete_bg_music(msg);
-							__msg("**********explorer to ebook**********\n");
-							
-							//root_para->root_type = msg->dwReserved;
-							root_para->data = 0;
-							root_para->root_type = root_para->explr_root  ;   
-
-							root_ctrl->h_app_ebook= app_ebook_create(root_para);
-							__here__;
-							GUI_WinSetFocusChild(root_ctrl->h_app_ebook);
-							__here__;
-							
-						}						
-						break;
 					default:
                         {
                             __err("media type err...\n");
@@ -738,57 +725,7 @@ static __s32 app_root_command_proc(__gui_msg_t *msg)
 				break;
 			}
 		}
-		break;
-		case APP_MOVIE_ID:
-		{
-            __msg("**********movie to explorer**********\n");
-            __msg("msg->dwAddData1=%d\n", msg->dwAddData1);
-            __msg("msg->dwAddData2=%d\n", msg->dwAddData2);
-            __msg("msg->dwReserved=%d\n", msg->dwReserved);
-			switch (HIWORD(msg->dwAddData1))
-			{
-				case SWITCH_TO_EXPLORER:
-				{
-                    GUI_ManWinDelete(root_ctrl->h_app_movie);
-        			root_ctrl->h_app_movie = 0;
-                    __here__;
-                    root_para->root_type = root_para->explr_root;
-                    root_para->data = ID_EXPLORER_MOVIE;
-                    root_ctrl->root_para->h_parent= GUI_WinGetParent(root_ctrl->h_app_home);
-                    root_ctrl->h_app_explorer =  app_explorer_create(root_para);
-                    GUI_WinSetFocusChild(root_ctrl->h_app_explorer);
-                    break;
-				}
-                case SWITCH_TO_MMENU:
-				{
-                    GUI_ManWinDelete(root_ctrl->h_app_movie);
-        			root_ctrl->h_app_movie = 0;
-                    __here__;
-                    __app_home_restore(msg);
-                    
-                    break;
-                }
-				case VIDEO_SW_TO_AUDIO:
-				{
-                    GUI_ManWinDelete(root_ctrl->h_app_movie);
-        			root_ctrl->h_app_movie = 0;
-                    DebugPrintf("music switch to movie ...........root_para->explr_root=%d\n",root_para->explr_root);
-                    root_para->root_type = root_para->explr_root;
-                    root_para->data = MUSICPLAYER_NORMAL;
-                    root_ctrl->root_para->h_parent= GUI_WinGetParent(root_ctrl->h_app_home);
-                    root_ctrl->h_app_music=  app_music_create(root_para);
-                    GUI_WinSetFocusChild(root_ctrl->h_app_music);
-                    break;
-				}	
-                default:
-                {
-                    break;
-                }
-			}
-			            			            	                    
-            break;
-            
-		}		
+		break;		
 		case APP_MUSIC_ID:
 		{
 			__msg("**********receive msg from music,msg->dwAddData2=%d**********\n", msg->dwAddData2);
@@ -821,18 +758,7 @@ static __s32 app_root_command_proc(__gui_msg_t *msg)
     		            root_ctrl->h_app_music = 0;  
                     }
                     break;
-                }
-				case AUDIO_SW_TO_VIDEO:
-				{
-                    GUI_ManWinDelete(root_ctrl->h_app_music);
-        			root_ctrl->h_app_music = 0;
-                    DebugPrintf("video switch to music ...........\n");
-                    root_para->root_type = msg->dwReserved;
-                    root_ctrl->root_para->h_parent= GUI_WinGetParent(root_ctrl->h_app_home);
-                    root_ctrl->h_app_movie=  app_movie_create(root_para);
-                    GUI_WinSetFocusChild(root_ctrl->h_app_movie);
-                    break;
-				}	
+                }	
 
                 default:
                 {
@@ -893,171 +819,7 @@ static __s32 app_root_command_proc(__gui_msg_t *msg)
 						
 			break;
 		}
-		case APP_EBOOK_ID:
-		{
-            switch (HIWORD(msg->dwAddData1))
-			{
-				case SWITCH_TO_EXPLORER:
-				{
-                    //删除后台音乐
-                    //__app_root_delete_bg_music(msg);
-                    
-                    __msg("**********ebook to explorer**********\n");
-			
-        			GUI_ManWinDelete(root_ctrl->h_app_ebook);
-        			root_ctrl->h_app_ebook = 0;
-
-                    //gscene_bgd_set_flag(EPDK_TRUE);
-                    //gscene_bgd_refresh();
-        			
-        			root_para->root_type = root_para->explr_root;
-        			root_para->data = ID_EXPLORER_EBOOK;
-        			root_ctrl->h_app_explorer =  app_explorer_create(root_para);
-        			GUI_WinSetFocusChild(root_ctrl->h_app_explorer);
-                    break;
-				}
-                case OPEN_BG_MUSIC:
-                {
-                    __app_root_create_bg_music(msg);
-                    break;
-                }
-                case CLOSE_BG_MUSIC:
-                {
-                    __app_root_delete_bg_music(msg);
-                    break;
-                }
-                case SWITCH_TO_MMENU:
-				{
-                    GUI_ManWinDelete(root_ctrl->h_app_ebook);
-        			root_ctrl->h_app_ebook = 0;
-                    __here__;
-                    __app_home_restore(msg);
-                    
-                    break;
-                }
-                default:
-                {
-                    break;
-                }
-            }							
-			
-			break;
-		}
 				
-		case APP_FM_ID:
-		{
-            switch (HIWORD(msg->dwAddData1))
-			{
-				case SWITCH_TO_MMENU:
-				{
-                    __msg("**********fm to home**********\n");
-					
-        			GUI_ManWinDelete(root_ctrl->h_app_fm);
-        			root_ctrl->h_app_fm = 0;
-                    
-        			__app_home_restore(msg);
-
-                    {//重新初始化按键音
-                        __set_keytone_t state;
-
-                        dsk_keytone_get_state(&state);
-                        dsk_keytone_exit();
-                        dsk_keytone_init(BEETLES_APP_ROOT"res\\sounds\\chord.wav");                    
-                        dsk_keytone_set_state(state);
-                    }
-                    break;
-				}
-                case SWITCH_TO_OTHER_APP:
-				{
-					switch(LOWORD(msg->dwAddData2))
-					{
-					    case FM_SW_TO_RECORD:
-						{
-                            __here__;                            
-
-                            GUI_ManWinDelete(root_ctrl->h_app_fm);
-        			        root_ctrl->h_app_fm = 0;
-
-                            //__app_root_change_to_default_bg();//这里不是通过主界面进入的，不记录进入ap之前背景的状态。
-                                
-							__msg("**********FM_SW_TO_RECORD**********\n");	
-                            root_ctrl->root_para->root_type = HIWORD(msg->dwAddData2);//RAT_USB或者RAT_TF
-                            root_ctrl->root_para->record_opt = 1;//fm录音
-							root_ctrl->root_para->h_parent= GUI_WinGetParent(root_ctrl->h_app_home);
-							root_ctrl->h_app_record=  app_record_create(root_para);
-							GUI_WinSetFocusChild(root_ctrl->h_app_record);
-
-                            {//重新初始化按键音
-                                __set_keytone_t state;
-
-                                dsk_keytone_get_state(&state);
-                                dsk_keytone_exit();
-                                dsk_keytone_init(BEETLES_APP_ROOT"res\\sounds\\chord.wav");                    
-                                dsk_keytone_set_state(state);
-                            }
-                            break;
-					    }
-                        default:
-                        {
-                            break;
-                        }
-					}
-                }
-                default:
-                {
-                    break;
-                }
-            }										
-					
-			break;
-		}
-        case APP_RECORD_ID:
-		{
-            switch (HIWORD(msg->dwAddData1))
-			{
-				case SWITCH_TO_MMENU:
-				{
-                    __msg("**********record to home**********\n");
-					
-        			GUI_ManWinDelete(root_ctrl->h_app_record);
-        			root_ctrl->h_app_record = 0;
-
-        			__app_home_restore(msg);
-                    
-                    break;
-				}
-                case SWITCH_TO_OTHER_APP:
-				{
-					switch(LOWORD(msg->dwAddData2))
-					{
-                        case RECORD_SW_TO_FM:
-                        {
-                            __here__;
-                            //__app_root_change_to_default_bg();//这里不是通过主界面进入的，不记录进入ap之前背景的状态。
-
-                            GUI_ManWinDelete(root_ctrl->h_app_record);
-        			        root_ctrl->h_app_record = 0;
-                                
-							__msg("**********FM_SW_TO_RECORD**********\n");	                                                        
-							root_ctrl->root_para->h_parent= GUI_WinGetParent(root_ctrl->h_app_home);
-							root_ctrl->h_app_fm = app_fm_create(root_para);
-							GUI_WinSetFocusChild(root_ctrl->h_app_fm);
-                            break;
-                        }
-                        default:
-                        {
-                            break;
-                        }
-					}                    
-                }
-                default:
-                {
-                    break;
-                }
-            }										
-					
-			break;
-		}
         case APP_CALENDAR_ID:
 		{
             switch (HIWORD(msg->dwAddData1))
@@ -1090,17 +852,20 @@ static __s32 app_root_command_proc(__gui_msg_t *msg)
 					switch(msg->dwAddData2)
 					{
 					case SETTING_SW_TO_MAIN:
-						{
-							__msg("**********setting to home**********\n");
-							GUI_ManWinDelete(root_ctrl->h_app_setting);
-        			        root_ctrl->h_app_setting= 0;
-							__app_home_restore(msg);
-							
-						}
-						break;
-					case SETTING_SW_TO_MULTIMEDIA:
 					{
+						__msg("**********setting to home**********\n");
+						GUI_ManWinDelete(root_ctrl->h_app_setting);
+    			        root_ctrl->h_app_setting= 0;
+						__app_home_restore(msg);
 						
+					}
+						break;
+					case SETTING_SW_TO_SCROLL:
+					{
+						GUI_ManWinDelete(root_ctrl->h_app_setting);
+    			        root_ctrl->h_app_setting= NULL;
+						__app_scroll_restore(msg);
+						g_enable_screensaver();
 					}
 						break;
 					case SETTING_SW_TO_PROMPT_UPGRADE:
@@ -1134,7 +899,7 @@ static __s32 app_root_command_proc(__gui_msg_t *msg)
 
 	return EPDK_OK;
 }
-#endif
+
 static __s32 __app_root_broadcast_msg(__gui_msg_t *msg)
 {
     H_WIN root, child;
@@ -1336,7 +1101,6 @@ static __s32 __app_pulldown_pe(void)
 	return EPDK_OK;
 }
 
-
 __s32 app_root_win_proc(__gui_msg_t *msg)
 {
     __msg("app_root_win_proc msg->id=%d, msg->h_deswin=%x, msg->dwAddData1=%d, msg->dwAddData2=%d\n"
@@ -1366,10 +1130,9 @@ __s32 app_root_win_proc(__gui_msg_t *msg)
 			root_para->h_parent		= msg->h_deswin;
 			root_para->font			= SWFFont;
 			root_para->root_type	= 0;
-			root_ctrl->h_app_home	= app_setting_create(root_para);
-            __msg("root_ctrl->h_app_home = %x\n", root_ctrl->h_app_home);
+			root_ctrl->h_app_scroll= app_scroll_create(root_para);
             
-			GUI_WinSetFocusChild(root_ctrl->h_app_home);
+			GUI_WinSetFocusChild(root_ctrl->h_app_scroll);
 			
 			root_ctrl->root_para = root_para;
 			GUI_WinSetAddData(msg->h_deswin, (__u32)root_ctrl);                       
@@ -1410,7 +1173,7 @@ __s32 app_root_win_proc(__gui_msg_t *msg)
 		return EPDK_OK;
 		case GUI_MSG_COMMAND:
  		{           
- 			//app_root_command_proc(msg);
+ 			app_root_command_proc(msg);
             
 			return EPDK_OK;
  		}					
@@ -1734,44 +1497,6 @@ __s32 app_root_win_proc(__gui_msg_t *msg)
 	
 	return GUI_ManWinDefaultProc(msg); 
 }
-
-__s32 app_root_win_proc_test(__gui_msg_t *msg)
-{
-    __msg("app_root_win_proc_test msg->id=%d, msg->h_deswin=%x, msg->dwAddData1=%d, msg->dwAddData2=%d\n"
-        ,msg->id, msg->h_deswin, msg->dwAddData1, msg->dwAddData2);
-	switch(msg->id)
-	{
-		case GUI_MSG_CREATE:
- 		{			
-			__msg("app_root_win_proc_test GUI_MSG_CREATE\n");
- 		}
-		return EPDK_OK;
-		case GUI_MSG_CLOSE:
-		{
-			GUI_ManWinDelete(msg->h_deswin);
-		}
-		return EPDK_OK;
-		case GUI_MSG_DESTROY:
- 		{
-			__msg("app_root_win_proc_test GUI_MSG_DESTROY\n");			
- 		}
-		return EPDK_OK;
-		case GUI_MSG_COMMAND:
- 		{
- 			__msg("app_root_win_proc_test GUI_MSG_COMMAND\n");			
-
-			return EPDK_OK;
- 		}					
-		case GUI_MSG_KEY:
-		{
-			__msg("app_root_win_proc_test GUI_MSG_KEY\n");		
-			return EPDK_OK;
-		}
-	}
-	
-	return GUI_ManWinDefaultProc(msg); 
-}
-
 
 /* 创建根窗口 */
 H_WIN app_root_wincreate(Activity *activity)

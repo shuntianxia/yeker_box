@@ -61,7 +61,7 @@ __s32 user_langres_init( const char *file )
 		hlang = Lang_Open( (char *)file, 0 );
 		if( hlang == NULL )
 		{
-			__err("Error in openning language res file %s.\n", file);
+			__wrn("Error in openning language res file %s.\n", file);
             return EPDK_FAIL;
 		}
 	}

@@ -20,10 +20,9 @@
 
 #include "apps.h"
 #include "beetles_app.h"
-#include "home_uipara.h"
 
 #define MAIN_MENU_ID  	(APP_HOME_ID +1)
-#define SUB_MENU_ID		(APP_HOME_ID +2)
+//#define SUB_MENU_ID		(APP_HOME_ID +2)
 #define MSGBOX_ID		(APP_HOME_ID +3)
 
 #define MOVIE_ID_SET_SHOWERR		(GUI_MSG_USER_DEF + 1)

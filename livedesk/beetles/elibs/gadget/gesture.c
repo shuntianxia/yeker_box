@@ -16,7 +16,7 @@
 #define MW_SAMPLE_POINTS            3//song adds
 
 #define MW_DCLICK_INTERVAL          15
-#define MW_LPRESS_PERIOD            300
+#define MW_LPRESS_PERIOD            200
 
 // The following macro definitions are for free sliding across only one block
 #define MW_CRITICAL_VELOCITY        6

@@ -68,7 +68,7 @@ __s32 user_theme_init( const char *file )
         hres = OpenRes( (char *)file, 0);
         if( hres == NULL )
         {
-        	__err("Error in opening resource file \"%s\".\n", file);
+        	__wrn("Error in opening resource file \"%s\".\n", file);
         	return EPDK_FAIL;
         }
     }

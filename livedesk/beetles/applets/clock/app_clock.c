@@ -132,7 +132,6 @@ static __s32 __app_clock_proc(__gui_msg_t* msg)
 	{
 		case GUI_MSG_CREATE:
 		{
-			gscene_bgd_set_state(BGD_STATUS_SHOW);
 			font_res_init();
 			__app_clock_init(msg);
 			break;
@@ -145,7 +144,6 @@ static __s32 __app_clock_proc(__gui_msg_t* msg)
 		{
 			font_res_deinit();
 			__app_clock_uninit(msg);
-			gscene_bgd_set_state(BGD_STATUS_HIDE);
 			break;
 		}
 		case GUI_MSG_CLOSE:

@@ -47,31 +47,21 @@ extern GUI_FONT    *SWFFont;
 #define APP_ROOT		"beetles"
 #define APP_HOME		"app_home"
 #define APP_EXPLORER	"app_explorer"
-#define APP_MOVIE		"app_movie"
 #define APP_MUSIC		"app_music"
 #define APP_PHOTO		"app_photo"
-#define APP_FM			"app_fm"
 #define APP_SETTING		"app_setting"
-#define APP_EBOOK		"app_ebook"
 #define APP_CALENDAR	"app_calendar"
-#define APP_RECORD	    "app_record"
-#define APP_DV	    	"app_dv"
 #define APP_CLOCK		"app_clock"
 #define APP_SCROLL		"app_scroll"
 
 #define APP_HOME_ID			0x1001
 #define APP_EXPLORER_ID		0x2001
-#define APP_MOVIE_ID		0x3001
-#define APP_MUSIC_ID		0x4001
-#define APP_PHOTO_ID		0x5001
-#define APP_FM_ID			0x6001
-#define APP_SETTING_ID		0x7001
-#define APP_EBOOK_ID		0x8001
-#define APP_CALENDAR_ID		0x9001
-#define APP_RECORD_ID		0x9002
-#define APP_DV_ID			0x9101
-#define APP_CLOCK_ID		0x9003
-#define APP_SCROLL_ID		0x9004
+#define APP_MUSIC_ID		0x3001
+#define APP_PHOTO_ID		0x4001
+#define APP_SETTING_ID		0x5001
+#define APP_CALENDAR_ID		0x6001
+#define APP_CLOCK_ID		0x7001
+#define APP_SCROLL_ID		0x8001
 
 typedef enum
 {    
@@ -129,6 +119,13 @@ typedef enum
 
 typedef enum
 {
+	SCROLL_SW_TO_MAIN=0,
+	SCROLL_SW_TO_SETTING,
+	SCROLL_SW_TO_SCREENSAVER,
+}scroll_sw_to_t;
+
+typedef enum
+{
 	ID_OTHERS_EXPLORER=0,
 	ID_OTHERS_EBOOK,
 	ID_OTHERS_CALENDAR,
@@ -151,26 +148,12 @@ enum{
 typedef enum
 {
 	SETTING_SW_TO_MAIN=0,
+	SETTING_SW_TO_SCROLL,
 	SETTING_SW_TO_PROMPT_UPGRADE,
 	SETTING_SW_TO_PROMPT_DEFAULT,
 	EXPLR_SW_TO_UPGRADE,
 	SETTING_SW_TO_MULTIMEDIA,
 }setting_sw_to_t;
-
-typedef enum
-{
-	FM_SW_TO_RECORD=0,
-}fm_sw_to_t;
-
-typedef enum
-{
-	RECORD_SW_TO_FM=0,
-}record_sw_to_t;
-
-typedef enum
-{
-	VIDEO_SW_TO_AUDIO=10,
-}movie_sw_to_t;
 
 typedef enum
 {

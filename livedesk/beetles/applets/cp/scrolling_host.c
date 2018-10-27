@@ -9,6 +9,7 @@
 #include "xml_array_demo.h"//¾ØÕó×é
 #include "tongxin_demo.h"//Í¨ĞÅ
 //#include <Esh_shell.h>
+#include "beetles_app.h"
 
 #ifdef THIS_DEBUG
 #undef THIS_DEBUG
@@ -659,23 +660,11 @@ static __s32 scrollingHostWndProc(__gui_msg_t * msg)
 			GUI_PostMessage(msg);
 		}
 		break;
-    case GUI_MSG_USER_GESTURE_LPRESS:		
-        	msg->h_deswin = wndDpt->scrolling.ewii.desktop;
-        	msg->id = GUI_MSG_USER_WIN_CHANGE;
-		if(wndDpt->clock_en){
-			if(wndDpt->current==1){
-	       		msg->dwAddData2 = HOME_SUBWIN_SETTING_TIME;
-			}else{
-				
-               		msg->dwAddData2 = HOME_SUBWIN_UPDATE;
-			}
-		}else{
-             		msg->dwAddData2 = HOME_SUBWIN_UPDATE;
-		}
-        	GUI_PostMessage(msg);
-        	break;
-    case GUI_MSG_USER_STANDY:
+    case GUI_MSG_USER_GESTURE_LPRESS:
+        main_cmd2parent(wndDpt->scrolling.ewii.desktop, SWITCH_TO_OTHER_APP, SCROLL_SW_TO_SETTING, 0);
         break;
+    //case GUI_MSG_USER_STANDY:
+        //break;
     default:
 #ifdef THIS_DEBUG
         LogMI("Unhandled scrolling host window message (%d)", msg->id);
