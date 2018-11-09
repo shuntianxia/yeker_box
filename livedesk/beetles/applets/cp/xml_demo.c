@@ -177,6 +177,42 @@ unsigned char * XML_GetChar_ToX(char * cha,unsigned char *xml_2)
 	esMEMS_Mfree(0, xml_1);
 	return xml_2;
 }
+
+/* 返回ch字符在sign数组中的序号 */
+int getIndexOfSigns(char ch)
+{
+    if(ch >= '0' && ch <= '9')
+    {
+        return ch - '0';
+    }
+    if(ch >= 'A' && ch <='F') 
+    {
+        return ch - 'A' + 10;
+    }
+    if(ch >= 'a' && ch <= 'f')
+    {
+        return ch - 'a' + 10;
+    }
+    return -1;
+}
+
+/* 十六进制数转换为十进制数 */
+long hexToDec(char *source)
+{
+    long sum = 0;
+    long t = 1;
+    int i, len;
+ 
+    len = strlen(source);
+    for(i=len-1; i>=0; i--)
+    {
+        sum += t * getIndexOfSigns(*(source + i));
+        t *= 16;
+    }  
+ 
+    return sum;
+}
+
 static int return_pingfang_zhi(int a,int b)
 {
    int i;

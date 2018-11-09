@@ -130,6 +130,41 @@ H_WIN EWin_FrameWindowCreate(char * name, EWin_InheritInfo_ForHeader * wndDpt, H
     return hWin;
 }
 
+H_WIN EWin_ItemWindowCreate(char * name, EWin_InheritInfo_ForHeader * wndDpt, H_WIN hLayer, RECT * wndRect, __pGUI_WIN_CB wndProc)
+{
+    H_WIN hWin;
+	__gui_framewincreate_para_t frmWndPara;
+
+	eLIBs_memset(&frmWndPara, 0, sizeof(__gui_framewincreate_para_t));
+    frmWndPara.name         = name;
+    frmWndPara.dwStyle      = WS_VISIBLE;
+	frmWndPara.dwExStyle    = WS_EX_NONE;
+	frmWndPara.spCaption    = NULL;
+	frmWndPara.hOwner       = NULL;
+	frmWndPara.hHosting     = wndDpt->hWnd;
+    frmWndPara.hLayer       = hLayer;
+	frmWndPara.FrameWinProc = (__pGUI_WIN_CB)esKRNL_GetCallBack((__pCBK_t)wndProc);
+    // frmWndPara.id            = 0;
+    GG_CopyRect(&frmWndPara.rect, wndRect);
+	frmWndPara.BkColor.alpha= 0;
+	frmWndPara.BkColor.red  = 0;
+	frmWndPara.BkColor.green= 0;
+	frmWndPara.BkColor.blue = 0;
+	frmWndPara.attr         = wndDpt;
+	frmWndPara.dwReserved   = 0;
+    hWin = GUI_FrmWinCreate(&frmWndPara);
+    if (NULL == hWin) {
+        LogE("Failed to create framework window (%s)", frmWndPara.name);
+        return 0;
+    }
+    //GUI_WinSetStyle(hWin, WS_VISIBLE);
+    GUI_WinUpdate(hWin, ORANGE_TRUE);
+#ifdef THIS_DEBUG
+    LogMI("Hello framework window (%s)", frmWndPara.name);
+#endif
+    return hWin;
+}
+
 H_WIN EWin_GestureAttrCollect(H_WIN start, __s32 x, __s32 y)
 {
     H_WIN temp;

@@ -210,7 +210,7 @@ static HomeDescriptor * homeWndInit(__gui_msg_t * msg)
 {
     HomeDescriptor * hdp;
     gg_handler domUIConfig;
-    gg_handler node;
+    gg_handler node, properties;
     char ** attr;
     int i;
 	gg_handler toiteNode;
@@ -254,12 +254,12 @@ static HomeDescriptor * homeWndInit(__gui_msg_t * msg)
     hdp->ewii.gestureArgs.timerid = HOME_GESTURE_TIMER;
     hdp->inertia = GG_GestureOpen();
     /* UI config */
-    node = GG_DOMGetFirstChild(node);
+    properties = GG_DOMGetFirstChild(node);
     //node = GG_DOMGetBrotherElementByTagName(node, "window");
-    if (node) {
+    if (properties) {
 		hdp->ewii.langid = SLIB_atoi(langid);
 		//LogMI("hdp->ewii.langid %d",hdp->ewii.langid);
-        hdp->hFocusWin = SCR_ScrollingHostBuilder(&hdp->ewii, ScrollingCreate_V0001, node);
+        hdp->hFocusWin = SCR_ScrollingHostBuilder(&hdp->ewii, ScrollingCreate_V0001, properties);
     } else {
         LogE("No window node in XML file");
         return NULL;

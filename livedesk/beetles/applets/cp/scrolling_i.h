@@ -86,6 +86,25 @@ typedef struct {
 
 } SCR_ScrollingButtonDescriptor;
 
+typedef enum {
+	ITEM_TYPE_PRESS_BUTTON,
+	ITEM_TYPE_PUSH_BUTTON,
+	ITEM_TYPE_GROUP_BUTTON,
+	//ITEM_TYPE_JUMP_BUTTON,
+	ITEM_TYPE_TEXTVIEW,
+	ITEM_TYPE_IMAGEVIEW,
+	ITEM_TYPE_SLIDER,
+}item_type_t;
+
+typedef struct {
+    SCR_ScrollingWndInfo_ForHeader scrolling;
+    unsigned inva;
+    gg_handler item_node;
+	item_type_t item_type;
+	__u16 item_id;
+	void *item_ext;
+} SCR_ScrollingItemDescriptor;
+
 extern H_WIN ScrollingAppendManage(char * name, SCR_ScrollingWndInfo_ForHeader * inherit);
 extern H_WIN ScrollingAppendPage(char * name, SCR_ScrollingWndInfo_ForHeader * inherit, int size, gg_handler pageNode, H_WIN hLayer, __pGUI_WIN_CB wndProc);
 extern H_WIN ScrollingAppendButton(char * name, SCR_ScrollingWndInfo_ForHeader * inherit, gg_handler buttonNode, __pGUI_WIN_CB wndProc);
